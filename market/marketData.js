@@ -1,9 +1,5 @@
 const WeexClient = require("../execution/weexClient");
 
-// ============================================================
-// MARKET DATA
-// ============================================================
-
 class MarketData {
   constructor(client = null) {
     this.client =
@@ -11,13 +7,15 @@ class MarketData {
       new WeexClient();
   }
 
-  // ==========================================================
-  // CONTRACT INFORMATION
-  // ==========================================================
+  // ============================================================
+  // CONTRACT INFO
+  // ============================================================
 
   async getContractInfo(symbol) {
     const normalizedSymbol =
-      String(symbol).toUpperCase();
+      String(symbol)
+        .toUpperCase()
+        .trim();
 
     return this.client.get(
       "/capi/v3/market/exchangeInfo",
@@ -28,13 +26,27 @@ class MarketData {
     );
   }
 
-  // ==========================================================
+  // ============================================================
+  // API TRADING SYMBOLS
+  // ============================================================
+
+  async getApiTradingSymbols() {
+    return this.client.get(
+      "/capi/v3/market/apiTradingSymbols",
+      {},
+      false
+    );
+  }
+
+  // ============================================================
   // MARK PRICE
-  // ==========================================================
+  // ============================================================
 
   async getMarkPrice(symbol) {
     const normalizedSymbol =
-      String(symbol).toUpperCase();
+      String(symbol)
+        .toUpperCase()
+        .trim();
 
     return this.client.get(
       "/capi/v3/market/symbolPrice",
@@ -46,13 +58,82 @@ class MarketData {
     );
   }
 
-  // ==========================================================
-  // SYMBOL INFORMATION
-  // ==========================================================
+  // ============================================================
+  // KLINES
+  // ============================================================
+
+  async getKlines(
+    symbol,
+    interval = "1m",
+    limit = 200
+  ) {
+    const normalizedSymbol =
+      String(symbol)
+        .toUpperCase()
+        .trim();
+
+    if (!normalizedSymbol) {
+      throw new Error(
+        "Chart symbol is required"
+      );
+    }
+
+    // ----------------------------------------------------------
+    // Make sure the symbol is actually available for
+    // WEEX API futures trading.
+    // ----------------------------------------------------------
+
+    const symbolsResult =
+      await this.getApiTradingSymbols();
+
+    const tradingSymbols =
+      Array.isArray(
+        symbolsResult?.data
+      )
+        ? symbolsResult.data
+            .map(
+              (item) =>
+                String(item)
+                  .toUpperCase()
+                  .trim()
+            )
+        : [];
+
+    if (
+      !tradingSymbols.includes(
+        normalizedSymbol
+      )
+    ) {
+      throw new Error(
+        `WEEX symbol is not available for API trading: ${normalizedSymbol}`
+      );
+    }
+
+    // ----------------------------------------------------------
+    // WEEX V3 Kline endpoint
+    // ----------------------------------------------------------
+
+    return this.client.get(
+      "/capi/v3/market/klines",
+      {
+        symbol:
+          normalizedSymbol,
+        interval,
+        limit,
+      },
+      false
+    );
+  }
+
+  // ============================================================
+  // COMBINED SYMBOL INFO
+  // ============================================================
 
   async getSymbolInfo(symbol) {
     const normalizedSymbol =
-      String(symbol).toUpperCase();
+      String(symbol)
+        .toUpperCase()
+        .trim();
 
     const [
       contractResult,
@@ -61,7 +142,6 @@ class MarketData {
       this.getContractInfo(
         normalizedSymbol
       ),
-
       this.getMarkPrice(
         normalizedSymbol
       ),
@@ -72,10 +152,6 @@ class MarketData {
 
     const priceData =
       priceResult.data;
-
-    // --------------------------------------------------------
-    // WEEX may return symbols as an array.
-    // --------------------------------------------------------
 
     const symbols =
       Array.isArray(
@@ -99,38 +175,34 @@ class MarketData {
       );
     }
 
-    // --------------------------------------------------------
-    // Price response
-    // --------------------------------------------------------
-
     let price = null;
 
     if (
       priceData &&
-      typeof priceData === "object"
+      typeof priceData ===
+        "object"
     ) {
       if (
-        priceData.price !== undefined
+        priceData.price !==
+        undefined
       ) {
         price =
           priceData.price;
       } else if (
-        priceData.markPrice !== undefined
+        priceData.markPrice !==
+        undefined
       ) {
         price =
           priceData.markPrice;
       } else if (
         priceData.data &&
-        priceData.data.price !== undefined
+        priceData.data.price !==
+          undefined
       ) {
         price =
           priceData.data.price;
       }
     }
-
-    // --------------------------------------------------------
-    // Return normalized information.
-    // --------------------------------------------------------
 
     return {
       symbol:
@@ -188,7 +260,8 @@ class MarketData {
         symbolInfo.maxLeverage ??
         null,
 
-      raw: symbolInfo,
+      raw:
+        symbolInfo,
     };
   }
 }

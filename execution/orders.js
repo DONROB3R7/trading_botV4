@@ -1,71 +1,125 @@
-const WeexClient =
-  require("./weexClient");
+const WeexClient = require("./weexClient");
 
 class OrderService {
   constructor(client = null) {
     this.client =
-      client || new WeexClient();
+      client ||
+      new WeexClient();
 
-    this.symbol =
-      "POLUSDT";
+    // ==========================================================
+    // DEFAULT TEST SETTINGS
+    // ==========================================================
 
-    this.quantity =
-      "10";
+    this.defaultLeverage = "10";
+    this.defaultMarginType = "ISOLATED";
 
-    this.leverage =
-      "10";
+    // Current test size.
+    // POLUSDT = 10 contracts.
+    this.defaultQuantity = "10";
   }
 
-  // ============================================================
+  // ==========================================================
   // SET LEVERAGE
-  // ============================================================
+  // ==========================================================
 
-  async setLeverage() {
-    const body = {
-      symbol: this.symbol,
-      marginType: "ISOLATED",
-      isolatedLongLeverage: "10",
-      isolatedShortLeverage: "10",
-    };
+  async setLeverage(symbol) {
+    const normalizedSymbol =
+      String(symbol)
+        .toUpperCase()
+        .trim();
 
-    return await this.client.post(
+    console.log(
+      `[TEST] Setting ${normalizedSymbol} isolated 10x...`
+    );
+
+    return this.client.post(
       "/capi/v3/account/leverage",
-      body
+      {
+        symbol:
+          normalizedSymbol,
+
+        marginType:
+          this.defaultMarginType,
+
+        isolatedLongLeverage:
+          this.defaultLeverage,
+
+        isolatedShortLeverage:
+          this.defaultLeverage,
+      }
     );
   }
 
-  // ============================================================
-  // OPEN TEST POSITION
-  // ============================================================
+  // ==========================================================
+  // OPEN POSITION
+  // ==========================================================
 
-  async openTestPosition(side) {
-    const requestedSide =
-      String(side).toUpperCase();
+  async openTestPosition(
+    symbol,
+    direction
+  ) {
+    const normalizedSymbol =
+      String(symbol)
+        .toUpperCase()
+        .trim();
+
+    const normalizedDirection =
+      String(direction)
+        .toUpperCase()
+        .trim();
 
     if (
-      requestedSide !== "LONG" &&
-      requestedSide !== "SHORT"
+      normalizedDirection !==
+        "LONG" &&
+      normalizedDirection !==
+        "SHORT"
     ) {
       throw new Error(
-        "Side must be LONG or SHORT."
+        "Direction must be LONG or SHORT"
       );
     }
 
-    await this.setLeverage();
+    // ----------------------------------------------------------
+    // Set isolated 10x
+    // ----------------------------------------------------------
 
-    const orderSide =
-      requestedSide === "LONG"
+    await this.setLeverage(
+      normalizedSymbol
+    );
+
+    // ----------------------------------------------------------
+    // LONG = BUY / LONG
+    // SHORT = SELL / SHORT
+    // ----------------------------------------------------------
+
+    const side =
+      normalizedDirection ===
+      "LONG"
         ? "BUY"
         : "SELL";
 
+    const positionSide =
+      normalizedDirection;
+
+    const clientOrderId =
+      `bot_${normalizedSymbol.toLowerCase()}_${Date.now()}`;
+
     const body = {
-      symbol: this.symbol,
-      side: orderSide,
-      positionSide: requestedSide,
-      type: "MARKET",
-      quantity: this.quantity,
+      symbol:
+        normalizedSymbol,
+
+      side,
+
+      positionSide,
+
+      type:
+        "MARKET",
+
+      quantity:
+        this.defaultQuantity,
+
       newClientOrderId:
-        `test_${requestedSide.toLowerCase()}_${Date.now()}`,
+        clientOrderId,
     };
 
     console.log(
@@ -86,44 +140,74 @@ class OrderService {
         body
       );
 
+    console.log(
+      "[TEST] MARKET ORDER RESPONSE"
+    );
+
+    console.log(
+      JSON.stringify(
+        result,
+        null,
+        2
+      )
+    );
+
     return {
-      success: true,
-      side: requestedSide,
-      symbol: this.symbol,
-      quantity: this.quantity,
-      leverage: this.leverage,
-      order: result,
+      ...result,
+      symbol:
+        normalizedSymbol,
+      direction:
+        normalizedDirection,
+      side,
+      positionSide,
+      quantity:
+        this.defaultQuantity,
     };
   }
 
-  // ============================================================
-  // CLOSE TEST POSITION
-  // ============================================================
+  // ==========================================================
+  // CLOSE POSITION
+  // ==========================================================
 
-  async closeTestPosition() {
+  async closeTestPosition(
+    symbol
+  ) {
+    const normalizedSymbol =
+      String(symbol)
+        .toUpperCase()
+        .trim();
+
     console.log(
-      "[TEST] Checking POLUSDT position before CLOSE..."
+      `[TEST] Looking for ${normalizedSymbol} position...`
     );
 
-    const positions =
+    const result =
       await this.client.get(
         "/capi/v3/account/position/allPosition"
       );
 
-    const positionList =
-      positions.data || [];
+    const positions =
+      Array.isArray(
+        result?.data
+      )
+        ? result.data
+        : [];
 
     const position =
-      positionList.find(
+      positions.find(
         (item) =>
-          item.symbol ===
-            this.symbol &&
-          Number(item.size || 0) !== 0
+          String(
+            item.symbol || ""
+          ).toUpperCase() ===
+            normalizedSymbol &&
+          Number(
+            item.size || 0
+          ) !== 0
       );
 
     if (!position) {
       throw new Error(
-        "No open POLUSDT position."
+        `No open ${normalizedSymbol} position found`
       );
     }
 
@@ -132,49 +216,56 @@ class OrderService {
         position.side || ""
       ).toUpperCase();
 
-    const positionSize =
+    const quantity =
       String(
         Math.abs(
-          Number(position.size)
+          Number(
+            position.size
+          )
         )
       );
 
     if (
-      positionSide !== "LONG" &&
-      positionSide !== "SHORT"
+      positionSide !==
+        "LONG" &&
+      positionSide !==
+        "SHORT"
     ) {
       throw new Error(
-        `Unknown POLUSDT position side: ${position.side}`
+        `Unknown position side: ${position.side}`
       );
     }
 
-    if (
-      !Number(positionSize) ||
-      Number(positionSize) <= 0
-    ) {
-      throw new Error(
-        "POLUSDT position size is invalid."
-      );
-    }
-
-    const orderSide =
-      positionSide === "LONG"
+    // LONG position closes with SELL.
+    // SHORT position closes with BUY.
+    const side =
+      positionSide ===
+      "LONG"
         ? "SELL"
         : "BUY";
 
     const body = {
-      symbol: this.symbol,
-      side: orderSide,
-      positionSide: positionSide,
-      type: "MARKET",
-      quantity: positionSize,
-      reduceOnly: true,
+      symbol:
+        normalizedSymbol,
+
+      side,
+
+      positionSide,
+
+      type:
+        "MARKET",
+
+      quantity,
+
+      reduceOnly:
+        true,
+
       newClientOrderId:
-        `test_close_${Date.now()}`,
+        `bot_close_${normalizedSymbol.toLowerCase()}_${Date.now()}`,
     };
 
     console.log(
-      "[TEST] CLOSE POSITION"
+      "[TEST] CLOSE ORDER BODY"
     );
 
     console.log(
@@ -185,30 +276,51 @@ class OrderService {
       )
     );
 
-    const result =
+    const closeResult =
       await this.client.post(
         "/capi/v3/order",
         body
       );
 
+    console.log(
+      "[TEST] CLOSE ORDER RESPONSE"
+    );
+
+    console.log(
+      JSON.stringify(
+        closeResult,
+        null,
+        2
+      )
+    );
+
     return {
-      success: true,
-      symbol: this.symbol,
-      positionSide,
-      quantity: positionSize,
-      orderSide,
-      order: result,
+      ...closeResult,
+
+      symbol:
+        normalizedSymbol,
+
+      direction:
+        positionSide,
+
+      quantity,
     };
   }
 
-  // ============================================================
-  // UPDATE TEST TP / SL
-  // ============================================================
+  // ==========================================================
+  // CREATE TP + SL
+  // ==========================================================
 
   async updateTestTpSl(
+    symbol,
     slPercent,
     tpPercent
   ) {
+    const normalizedSymbol =
+      String(symbol)
+        .toUpperCase()
+        .trim();
+
     const sl =
       Number(slPercent);
 
@@ -220,7 +332,7 @@ class OrderService {
       sl <= 0
     ) {
       throw new Error(
-        "SL percentage must be greater than 0."
+        "Stop Loss must be greater than 0"
       );
     }
 
@@ -229,33 +341,41 @@ class OrderService {
       tp <= 0
     ) {
       throw new Error(
-        "TP percentage must be greater than 0."
+        "Take Profit must be greater than 0"
       );
     }
 
-    console.log(
-      "[TEST] Checking POLUSDT position for TP/SL..."
-    );
+    // ----------------------------------------------------------
+    // Get current position
+    // ----------------------------------------------------------
 
-    const positions =
+    const result =
       await this.client.get(
         "/capi/v3/account/position/allPosition"
       );
 
-    const positionList =
-      positions.data || [];
+    const positions =
+      Array.isArray(
+        result?.data
+      )
+        ? result.data
+        : [];
 
     const position =
-      positionList.find(
+      positions.find(
         (item) =>
-          item.symbol ===
-            this.symbol &&
-          Number(item.size || 0) !== 0
+          String(
+            item.symbol || ""
+          ).toUpperCase() ===
+            normalizedSymbol &&
+          Number(
+            item.size || 0
+          ) !== 0
       );
 
     if (!position) {
       throw new Error(
-        "No open POLUSDT position."
+        `No open ${normalizedSymbol} position found`
       );
     }
 
@@ -265,46 +385,67 @@ class OrderService {
       ).toUpperCase();
 
     const size =
-      Number(position.size);
+      Math.abs(
+        Number(
+          position.size
+        )
+      );
 
     const openValue =
-      Number(position.openValue);
+      Number(
+        position.openValue ||
+          position.openValueAmount ||
+          0
+      );
+
+    let averageEntry =
+      Number(
+        position.averageEntryPrice ||
+        position.avgOpenPrice ||
+        position.entryPrice ||
+        0
+      );
+
+    // ----------------------------------------------------------
+    // Fallback calculation used by our previous working test.
+    // ----------------------------------------------------------
 
     if (
-      !Number.isFinite(size) ||
-      size <= 0
+      !Number.isFinite(
+        averageEntry
+      ) ||
+      averageEntry <= 0
     ) {
-      throw new Error(
-        "Invalid POLUSDT position size."
-      );
+      if (
+        openValue > 0 &&
+        size > 0
+      ) {
+        averageEntry =
+          openValue / size;
+      }
     }
 
     if (
-      !Number.isFinite(openValue) ||
-      openValue <= 0
+      !Number.isFinite(
+        averageEntry
+      ) ||
+      averageEntry <= 0
     ) {
       throw new Error(
-        "Invalid POLUSDT open value."
+        `Could not determine entry price for ${normalizedSymbol}`
       );
     }
 
-    if (
-      positionSide !== "LONG" &&
-      positionSide !== "SHORT"
-    ) {
-      throw new Error(
-        `Unknown POLUSDT position side: ${position.side}`
-      );
-    }
-
-    const averageEntry =
-      openValue / size;
+    // ----------------------------------------------------------
+    // Calculate prices
+    // ----------------------------------------------------------
 
     let stopLoss;
     let takeProfit;
 
     if (
-      positionSide === "LONG"
+      positionSide ===
+      "LONG"
     ) {
       stopLoss =
         averageEntry *
@@ -313,7 +454,10 @@ class OrderService {
       takeProfit =
         averageEntry *
         (1 + tp / 100);
-    } else {
+    } else if (
+      positionSide ===
+      "SHORT"
+    ) {
       stopLoss =
         averageEntry *
         (1 + sl / 100);
@@ -321,7 +465,15 @@ class OrderService {
       takeProfit =
         averageEntry *
         (1 - tp / 100);
+    } else {
+      throw new Error(
+        `Unknown position side: ${position.side}`
+      );
     }
+
+    // ----------------------------------------------------------
+    // WEEX price precision for our current test symbols.
+    // ----------------------------------------------------------
 
     stopLoss =
       Number(
@@ -334,113 +486,138 @@ class OrderService {
       );
 
     console.log(
-      "[TEST] TP/SL CALCULATION"
+      `[TEST] ${normalizedSymbol} ${positionSide}`
     );
 
-    console.log({
-      positionSide,
-      averageEntry,
-      slPercent: sl,
-      tpPercent: tp,
-      stopLoss,
-      takeProfit,
-    });
+    console.log(
+      `[TEST] Entry=${averageEntry}`
+    );
 
-    // ==========================================================
+    console.log(
+      `[TEST] SL=${stopLoss}`
+    );
+
+    console.log(
+      `[TEST] TP=${takeProfit}`
+    );
+
+    // ----------------------------------------------------------
     // STOP LOSS
-    // ==========================================================
+    // ----------------------------------------------------------
 
-    const stopLossBody = {
-      symbol: this.symbol,
+    const slBody = {
+      symbol:
+        normalizedSymbol,
+
       clientAlgoId:
-        `test_sl_${Date.now()}`,
+        `bot_sl_${normalizedSymbol.toLowerCase()}_${Date.now()}`,
+
       planType:
         "STOP_LOSS",
+
       triggerPrice:
         String(stopLoss),
+
       executePrice:
         "0",
+
       quantity:
         "0",
+
       positionSide,
+
       triggerPriceType:
         "MARK_PRICE",
+
       reduceOnly:
         true,
     };
 
     console.log(
-      "[TEST] SL REQUEST BODY"
+      "[TEST] STOP LOSS REQUEST"
     );
 
     console.log(
       JSON.stringify(
-        stopLossBody,
+        slBody,
         null,
         2
       )
     );
 
-    const stopLossResult =
+    const slResult =
       await this.client.post(
         "/capi/v3/placeTpSlOrder",
-        stopLossBody
+        slBody
       );
 
-    // ==========================================================
+    // ----------------------------------------------------------
     // TAKE PROFIT
-    // ==========================================================
+    // ----------------------------------------------------------
 
-    const takeProfitBody = {
-      symbol: this.symbol,
+    const tpBody = {
+      symbol:
+        normalizedSymbol,
+
       clientAlgoId:
-        `test_tp_${Date.now()}`,
+        `bot_tp_${normalizedSymbol.toLowerCase()}_${Date.now()}`,
+
       planType:
         "TAKE_PROFIT",
+
       triggerPrice:
         String(takeProfit),
+
       executePrice:
         "0",
+
       quantity:
         "0",
+
       positionSide,
+
       triggerPriceType:
         "MARK_PRICE",
+
       reduceOnly:
         true,
     };
 
     console.log(
-      "[TEST] TP REQUEST BODY"
+      "[TEST] TAKE PROFIT REQUEST"
     );
 
     console.log(
       JSON.stringify(
-        takeProfitBody,
+        tpBody,
         null,
         2
       )
     );
 
-    const takeProfitResult =
+    const tpResult =
       await this.client.post(
         "/capi/v3/placeTpSlOrder",
-        takeProfitBody
+        tpBody
       );
 
     return {
-      success: true,
-      symbol: this.symbol,
-      positionSide,
-      averageEntry,
-      slPercent: sl,
-      tpPercent: tp,
+      symbol:
+        normalizedSymbol,
+
+      direction:
+        positionSide,
+
+      entryPrice:
+        averageEntry,
+
       stopLoss,
+
       takeProfit,
-      stopLossOrder:
-        stopLossResult,
-      takeProfitOrder:
-        takeProfitResult,
+
+      slResult,
+
+      tpResult,
     };
   }
 }

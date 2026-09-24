@@ -9,6 +9,8 @@ import Navbar from "./components/Navbar";
 
 import Dashboard from "./pages/Dashboard";
 import TradeTest from "./pages/TradeTest";
+import ChartBot from "./pages/ChartBot";
+import BotManagement from "./pages/BotManagement";
 
 // ============================================================
 // APP
@@ -17,10 +19,13 @@ import TradeTest from "./pages/TradeTest";
 function App() {
   return (
     <BrowserRouter>
+
       <div className="app-shell">
+
         <Navbar />
 
         <main className="app-content">
+
           <Routes>
 
             <Route
@@ -47,9 +52,26 @@ function App() {
               }
             />
 
+            <Route
+              path="/chart-bot"
+              element={
+                <ChartBot />
+              }
+            />
+
+            <Route
+              path="/bot-management"
+              element={
+                <BotManagement />
+              }
+            />
+
           </Routes>
+
         </main>
+
       </div>
+
     </BrowserRouter>
   );
 }

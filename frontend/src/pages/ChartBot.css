@@ -1,0 +1,282 @@
+/* ============================================================
+   CHART BOT PAGE
+   ============================================================ */
+
+.chart-bot-page {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 30px;
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.chart-bot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.chart-bot-header h1 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 28px;
+}
+
+.chart-bot-symbol {
+  margin-top: 7px;
+  color: #60a5fa;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ============================================================
+   BOT SELECTOR
+   ============================================================ */
+
+.chart-bot-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 240px;
+}
+
+.chart-bot-selector label {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
+.chart-bot-selector select {
+  height: 42px;
+  padding: 0 12px;
+
+  background: #0d1728;
+  color: #f8fafc;
+
+  border: 1px solid #294467;
+  border-radius: 6px;
+
+  outline: none;
+  cursor: pointer;
+}
+
+.chart-bot-selector select:focus {
+  border-color: #3b82f6;
+}
+
+/* ============================================================
+   ERROR / SUCCESS
+   ============================================================ */
+
+.chart-bot-error,
+.chart-bot-success {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+
+  border-radius: 6px;
+
+  font-size: 13px;
+}
+
+.chart-bot-error {
+  background: #32151a;
+  border: 1px solid #7f1d1d;
+  color: #fca5a5;
+}
+
+.chart-bot-success {
+  background: #10251b;
+  border: 1px solid #166534;
+  color: #86efac;
+}
+
+/* ============================================================
+   CHART
+   ============================================================ */
+
+.chart-card {
+  background: #0d1728;
+  border: 1px solid #1e3150;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.chart-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  min-height: 50px;
+  padding: 0 18px;
+
+  border-bottom: 1px solid #1b2b43;
+
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chart-refresh-status {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.chart-container {
+  width: 100%;
+  height: 600px;
+}
+
+/* ============================================================
+   BOT INFORMATION
+   ============================================================ */
+
+.bot-info-card {
+  margin-top: 18px;
+
+  background: #0d1728;
+
+  border: 1px solid #1e3150;
+  border-radius: 10px;
+
+  overflow: hidden;
+}
+
+.bot-info-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bot-info-table tr {
+  border-bottom: 1px solid #1b2b43;
+}
+
+.bot-info-table tr:last-child {
+  border-bottom: none;
+}
+
+.bot-info-table td {
+  padding: 13px 18px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.bot-info-table td:first-child {
+  width: 180px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.bot-info-table td:last-child {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+/* ============================================================
+   ENTER BUTTON
+   ============================================================ */
+
+.chart-bot-enter-button {
+  min-width: 170px;
+  height: 38px;
+  padding: 0 16px;
+
+  background: #14532d;
+  border: 1px solid #16a34a;
+  border-radius: 6px;
+
+  color: #bbf7d0;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.chart-bot-enter-button:hover:not(:disabled) {
+  background: #166534;
+  border-color: #22c55e;
+  color: #dcfce7;
+}
+
+/* ============================================================
+   CLOSE BUTTON
+   ============================================================ */
+
+.chart-bot-close-button {
+  min-width: 170px;
+  height: 38px;
+  padding: 0 16px;
+
+  background: #32151a;
+  border: 1px solid #7f1d1d;
+  border-radius: 6px;
+
+  color: #fca5a5;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.chart-bot-close-button:hover:not(:disabled) {
+  background: #451a1f;
+  border-color: #ef4444;
+  color: #fecaca;
+}
+
+/* ============================================================
+   DISABLED
+   ============================================================ */
+
+.chart-bot-enter-button:disabled,
+.chart-bot-close-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (
+  max-width: 700px
+) {
+  .chart-bot-page {
+    padding: 20px;
+  }
+
+  .chart-bot-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chart-bot-selector {
+    width: 100%;
+  }
+
+  .bot-info-table td {
+    padding: 11px 12px;
+  }
+
+  .bot-info-table td:first-child {
+    width: 120px;
+  }
+
+  .chart-container {
+    height: 500px;
+  }
+
+  .chart-bot-enter-button,
+  .chart-bot-close-button {
+    width: 100%;
+  }
+}

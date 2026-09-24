@@ -19,10 +19,6 @@ const MarketData =
 const OrderService =
   require("../execution/orders");
 
-// ============================================================
-// SERVER
-// ============================================================
-
 const app =
   express();
 
@@ -39,7 +35,7 @@ app.use(
 
     res.header(
       "Access-Control-Allow-Methods",
-      "GET,POST,OPTIONS"
+      "GET,POST,PUT,DELETE,OPTIONS"
     );
 
     res.header(
@@ -51,7 +47,9 @@ app.use(
       req.method ===
       "OPTIONS"
     ) {
-      return res.sendStatus(204);
+      return res.sendStatus(
+        200
+      );
     }
 
     next();
@@ -90,6 +88,22 @@ const orders =
   );
 
 // ============================================================
+// BOT STORAGE
+// ============================================================
+
+const bots = [];
+
+// ============================================================
+// BOT TP/SL TIMERS
+// ============================================================
+
+const botTimers =
+  new Map();
+
+const TP_SL_DELAY_MS =
+  30 * 1000;
+
+// ============================================================
 // HEALTH
 // ============================================================
 
@@ -97,22 +111,30 @@ app.get(
   "/api/health",
   (req, res) => {
     res.json({
-      status: "online",
-      project: "WEEX Bot V4",
-      backend: "Node.js",
-      weexBaseUrl: config.baseUrl,
-      authenticated: Boolean(
-        config.apiKey &&
-        config.apiSecret &&
-        config.passphrase
-      ),
-      port: config.port,
+      status:
+        "online",
+
+      project:
+        "WEEX Bot Lab",
+
+      backend:
+        "Node.js",
+
+      port:
+        config.port,
+
+      weexConfigured:
+        Boolean(
+          process.env.WEEX_API_KEY &&
+          process.env.WEEX_API_SECRET &&
+          process.env.WEEX_API_PASSPHRASE
+        ),
     });
   }
 );
 
 // ============================================================
-// ACCOUNT BALANCE
+// ACCOUNT
 // ============================================================
 
 app.get(
@@ -122,22 +144,21 @@ app.get(
       const result =
         await account.getBalance();
 
-      res.json({
-        success: true,
-        data: result.data,
-      });
+      res.json(
+        result
+      );
     } catch (error) {
       console.error(
-        "[WEEX ACCOUNT ERROR]",
+        "[API] Account error:",
         error
       );
 
-      res.status(
-        error.status || 500
-      ).json({
-        success: false,
-        error: error.message,
-        weex: error.data || null,
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
       });
     }
   }
@@ -154,22 +175,21 @@ app.get(
       const result =
         await account.getConfig();
 
-      res.json({
-        success: true,
-        data: result.data,
-      });
+      res.json(
+        result
+      );
     } catch (error) {
       console.error(
-        "[WEEX CONFIG ERROR]",
+        "[API] Account config error:",
         error
       );
 
-      res.status(
-        error.status || 500
-      ).json({
-        success: false,
-        error: error.message,
-        weex: error.data || null,
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
       });
     }
   }
@@ -184,168 +204,231 @@ app.get(
   async (req, res) => {
     try {
       const result =
-        await positions.getAllPositions();
+        await positions.getAll();
 
-      res.json({
-        success: true,
-        data: result.data,
-      });
+      res.json(
+        result
+      );
     } catch (error) {
       console.error(
-        "[WEEX POSITIONS ERROR]",
+        "[API] Positions error:",
         error
       );
 
-      res.status(
-        error.status || 500
-      ).json({
-        success: false,
-        error: error.message,
-        weex: error.data || null,
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
       });
     }
   }
 );
 
 // ============================================================
-// POLUSDT MARKET INFORMATION
+// TRADING SYMBOLS
+// ============================================================
+
+app.get(
+  "/api/weex/trading-symbols",
+  async (req, res) => {
+    try {
+      const result =
+        await marketData.getApiTradingSymbols();
+
+      const symbols =
+        Array.isArray(
+          result.data
+        )
+          ? result.data
+          : [];
+
+      res.json({
+        success:
+          true,
+
+        data:
+          symbols
+            .map(
+              (symbol) =>
+                String(
+                  symbol
+                )
+                  .toUpperCase()
+                  .trim()
+            )
+            .sort(),
+      });
+    } catch (error) {
+      console.error(
+        "[API] Trading symbols error:",
+        error
+      );
+
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
+      });
+    }
+  }
+);
+
+// ============================================================
+// POLUSDT TEST
 // ============================================================
 
 app.get(
   "/api/test/polusdt",
   async (req, res) => {
     try {
-      const data =
+      const result =
         await marketData.getSymbolInfo(
           "POLUSDT"
         );
 
       res.json({
-        success: true,
-        data,
+        success:
+          true,
+
+        data:
+          result,
       });
     } catch (error) {
       console.error(
-        "[POLUSDT MARKET ERROR]",
+        "[API] POLUSDT test error:",
         error
       );
 
-      res.status(
-        error.status || 500
-      ).json({
-        success: false,
-        error: error.message,
-        weex: error.data || null,
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
       });
     }
   }
 );
 
 // ============================================================
-// OPEN POLUSDT TEST LONG
+// OLD TEST LONG
 // ============================================================
 
 app.post(
   "/api/test/polusdt/long",
   async (req, res) => {
     try {
-      console.log(
-        "[TEST] POLUSDT LONG requested."
-      );
-
       const result =
         await orders.openTestPosition(
+          "POLUSDT",
           "LONG"
         );
 
-      res.json(result);
+      res.json({
+        success:
+          true,
+
+        data:
+          result,
+      });
     } catch (error) {
       console.error(
-        "[POLUSDT LONG ERROR]",
+        "[API] POLUSDT LONG error:",
         error
       );
 
-      res.status(
-        error.status || 500
-      ).json({
-        success: false,
-        error: error.message,
-        weex: error.data || null,
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
       });
     }
   }
 );
 
 // ============================================================
-// OPEN POLUSDT TEST SHORT
+// OLD TEST SHORT
 // ============================================================
 
 app.post(
   "/api/test/polusdt/short",
   async (req, res) => {
     try {
-      console.log(
-        "[TEST] POLUSDT SHORT requested."
-      );
-
       const result =
         await orders.openTestPosition(
+          "POLUSDT",
           "SHORT"
         );
 
-      res.json(result);
+      res.json({
+        success:
+          true,
+
+        data:
+          result,
+      });
     } catch (error) {
       console.error(
-        "[POLUSDT SHORT ERROR]",
+        "[API] POLUSDT SHORT error:",
         error
       );
 
-      res.status(
-        error.status || 500
-      ).json({
-        success: false,
-        error: error.message,
-        weex: error.data || null,
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
       });
     }
   }
 );
 
 // ============================================================
-// CLOSE POLUSDT TEST POSITION
+// OLD TEST CLOSE
 // ============================================================
 
 app.post(
   "/api/test/polusdt/close",
   async (req, res) => {
     try {
-      console.log(
-        "[TEST] POLUSDT CLOSE requested."
-      );
-
       const result =
-        await orders.closeTestPosition();
+        await orders.closeTestPosition(
+          "POLUSDT"
+        );
 
-      res.json(result);
+      res.json({
+        success:
+          true,
+
+        data:
+          result,
+      });
     } catch (error) {
       console.error(
-        "[POLUSDT CLOSE ERROR]",
+        "[API] POLUSDT CLOSE error:",
         error
       );
 
-      res.status(
-        error.status || 500
-      ).json({
-        success: false,
-        error: error.message,
-        weex: error.data || null,
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
       });
     }
   }
 );
 
 // ============================================================
-// UPDATE POLUSDT TEST TP / SL
+// OLD TEST TP/SL
 // ============================================================
 
 app.post(
@@ -353,33 +436,769 @@ app.post(
   async (req, res) => {
     try {
       const {
-        slPercent,
-        tpPercent,
+        stopLoss,
+        takeProfit,
       } = req.body;
-
-      console.log(
-        "[TEST] POLUSDT TP/SL UPDATE requested."
-      );
 
       const result =
         await orders.updateTestTpSl(
-          slPercent,
-          tpPercent
+          "POLUSDT",
+          stopLoss,
+          takeProfit
         );
 
-      res.json(result);
+      res.json({
+        success:
+          true,
+
+        data:
+          result,
+      });
     } catch (error) {
       console.error(
-        "[POLUSDT TP/SL ERROR]",
+        "[API] POLUSDT TP/SL error:",
         error
       );
 
-      res.status(
-        error.status || 500
-      ).json({
-        success: false,
-        error: error.message,
-        weex: error.data || null,
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
+      });
+    }
+  }
+);
+
+// ============================================================
+// CHART
+// ============================================================
+
+app.get(
+  "/api/chart/:symbol",
+  async (req, res) => {
+    try {
+      const symbol =
+        String(
+          req.params.symbol
+        )
+          .toUpperCase()
+          .trim();
+
+      if (!symbol) {
+        throw new Error(
+          "Chart symbol is required"
+        );
+      }
+
+      const result =
+        await marketData.getKlines(
+          symbol,
+          "1m",
+          200
+        );
+
+      const raw =
+        result?.data;
+
+      if (
+        !Array.isArray(raw)
+      ) {
+        throw new Error(
+          "WEEX returned invalid candle data"
+        );
+      }
+
+      const candles =
+        raw
+          .map(
+            (candle) => ({
+              time:
+                Number(
+                  candle[0]
+                ) / 1000,
+
+              open:
+                Number(
+                  candle[1]
+                ),
+
+              high:
+                Number(
+                  candle[2]
+                ),
+
+              low:
+                Number(
+                  candle[3]
+                ),
+
+              close:
+                Number(
+                  candle[4]
+                ),
+            })
+          )
+          .filter(
+            (candle) =>
+              Number.isFinite(
+                candle.time
+              ) &&
+              Number.isFinite(
+                candle.open
+              ) &&
+              Number.isFinite(
+                candle.high
+              ) &&
+              Number.isFinite(
+                candle.low
+              ) &&
+              Number.isFinite(
+                candle.close
+              )
+          )
+          .sort(
+            (a, b) =>
+              a.time -
+              b.time
+          );
+
+      res.json({
+        success:
+          true,
+
+        symbol,
+
+        data:
+          candles,
+      });
+    } catch (error) {
+      console.error(
+        `[API] Chart ${req.params.symbol} error:`,
+        error
+      );
+
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
+      });
+    }
+  }
+);
+
+// ============================================================
+// GET BOTS
+// ============================================================
+
+app.get(
+  "/api/bots",
+  (req, res) => {
+    res.json({
+      success:
+        true,
+
+      data:
+        bots,
+    });
+  }
+);
+
+// ============================================================
+// CREATE BOT
+// ============================================================
+
+app.post(
+  "/api/bots",
+  (req, res) => {
+    try {
+      const {
+        name,
+        symbol,
+        direction,
+        entryModel,
+        stopLoss,
+        takeProfit,
+      } = req.body;
+
+      const cleanName =
+        String(
+          name || ""
+        ).trim();
+
+      if (!cleanName) {
+        return res.status(400).json({
+          success:
+            false,
+
+          error:
+            "Bot name is required",
+        });
+      }
+
+      const cleanSymbol =
+        String(
+          symbol || ""
+        )
+          .toUpperCase()
+          .trim();
+
+      if (!cleanSymbol) {
+        return res.status(400).json({
+          success:
+            false,
+
+          error:
+            "Trading symbol is required",
+        });
+      }
+
+      const cleanDirection =
+        String(
+          direction || ""
+        )
+          .toUpperCase()
+          .trim();
+
+      if (
+        cleanDirection !==
+          "LONG" &&
+        cleanDirection !==
+          "SHORT"
+      ) {
+        return res.status(400).json({
+          success:
+            false,
+
+          error:
+            "Direction must be LONG or SHORT",
+        });
+      }
+
+      const sl =
+        Number(
+          stopLoss
+        );
+
+      const tp =
+        Number(
+          takeProfit
+        );
+
+      if (
+        !Number.isFinite(sl) ||
+        sl <= 0
+      ) {
+        return res.status(400).json({
+          success:
+            false,
+
+          error:
+            "Stop Loss must be greater than 0",
+        });
+      }
+
+      if (
+        !Number.isFinite(tp) ||
+        tp <= 0
+      ) {
+        return res.status(400).json({
+          success:
+            false,
+
+          error:
+            "Take Profit must be greater than 0",
+        });
+      }
+
+      const bot = {
+        id:
+          `bot_${Date.now()}`,
+
+        name:
+          cleanName,
+
+        symbol:
+          cleanSymbol,
+
+        direction:
+          cleanDirection,
+
+        entryModel:
+          entryModel ||
+          "BUTTON_PRESS",
+
+        stopLoss:
+          sl,
+
+        takeProfit:
+          tp,
+
+        status:
+          "ACTIVE",
+
+        createdAt:
+          new Date().toISOString(),
+      };
+
+      bots.push(
+        bot
+      );
+
+      console.log(
+        `[Bot] Created ${bot.name} | ${bot.symbol} | ${bot.direction}`
+      );
+
+      res.json({
+        success:
+          true,
+
+        data:
+          bot,
+      });
+    } catch (error) {
+      console.error(
+        "[API] Create bot error:",
+        error
+      );
+
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
+      });
+    }
+  }
+);
+
+// ============================================================
+// ENTER BOT POSITION
+// ============================================================
+
+app.post(
+  "/api/bots/:id/enter",
+  async (req, res) => {
+    const botId =
+      String(
+        req.params.id || ""
+      ).trim();
+
+    const bot =
+      bots.find(
+        (item) =>
+          item.id ===
+          botId
+      );
+
+    if (!bot) {
+      return res.status(404).json({
+        success:
+          false,
+
+        error:
+          "Bot not found",
+      });
+    }
+
+    if (
+      bot.status !==
+      "ACTIVE"
+    ) {
+      return res.status(400).json({
+        success:
+          false,
+
+        error:
+          "Bot is paused",
+      });
+    }
+
+    // ----------------------------------------------------------
+    // Prevent starting another lifecycle for the same bot.
+    // ----------------------------------------------------------
+
+    if (
+      botTimers.has(
+        bot.id
+      )
+    ) {
+      return res.status(400).json({
+        success:
+          false,
+
+        error:
+          "Bot is already waiting for TP/SL",
+      });
+    }
+
+    try {
+      console.log(
+        `[Bot:${bot.name}] ENTER ${bot.direction} ${bot.symbol}`
+      );
+
+      // --------------------------------------------------------
+      // MARKET ENTRY
+      // --------------------------------------------------------
+
+      const entryResult =
+        await orders.openTestPosition(
+          bot.symbol,
+          bot.direction
+        );
+
+      console.log(
+        `[Bot:${bot.name}] Position opened`
+      );
+
+      // --------------------------------------------------------
+      // START 30 SECOND TP/SL TIMER
+      // --------------------------------------------------------
+
+      const timer =
+        setTimeout(
+          async () => {
+            try {
+              console.log(
+                `[Bot:${bot.name}] 30 seconds complete - creating TP/SL`
+              );
+
+              await orders.updateTestTpSl(
+                bot.symbol,
+                bot.stopLoss,
+                bot.takeProfit
+              );
+
+              console.log(
+                `[Bot:${bot.name}] TP/SL created`
+              );
+            } catch (error) {
+              console.error(
+                `[Bot:${bot.name}] TP/SL timer error:`,
+                error
+              );
+            } finally {
+              botTimers.delete(
+                bot.id
+              );
+            }
+          },
+          TP_SL_DELAY_MS
+        );
+
+      botTimers.set(
+        bot.id,
+        timer
+      );
+
+      res.json({
+        success:
+          true,
+
+        message:
+          "Position opened. TP/SL will be created in 30 seconds.",
+
+        data: {
+          botId:
+            bot.id,
+
+          botName:
+            bot.name,
+
+          symbol:
+            bot.symbol,
+
+          direction:
+            bot.direction,
+
+          delaySeconds:
+            30,
+
+          entry:
+            entryResult,
+        },
+      });
+    } catch (error) {
+      console.error(
+        `[Bot:${bot.name}] ENTER error:`,
+        error
+      );
+
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
+      });
+    }
+  }
+);
+
+// ============================================================
+// CLOSE BOT POSITION
+// ============================================================
+
+app.post(
+  "/api/bots/:id/close",
+  async (req, res) => {
+    const botId =
+      String(
+        req.params.id || ""
+      ).trim();
+
+    const bot =
+      bots.find(
+        (item) =>
+          item.id ===
+          botId
+      );
+
+    if (!bot) {
+      return res.status(404).json({
+        success:
+          false,
+
+        error:
+          "Bot not found",
+      });
+    }
+
+    try {
+      // --------------------------------------------------------
+      // Cancel pending TP/SL timer.
+      // --------------------------------------------------------
+
+      const timer =
+        botTimers.get(
+          bot.id
+        );
+
+      if (timer) {
+        clearTimeout(
+          timer
+        );
+
+        botTimers.delete(
+          bot.id
+        );
+
+        console.log(
+          `[Bot:${bot.name}] Pending TP/SL timer cancelled`
+        );
+      }
+
+      // --------------------------------------------------------
+      // Close actual position.
+      // --------------------------------------------------------
+
+      const result =
+        await orders.closeTestPosition(
+          bot.symbol
+        );
+
+      console.log(
+        `[Bot:${bot.name}] Position closed`
+      );
+
+      res.json({
+        success:
+          true,
+
+        message:
+          "Position closed",
+
+        data:
+          result,
+      });
+    } catch (error) {
+      console.error(
+        `[Bot:${bot.name}] CLOSE error:`,
+        error
+      );
+
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
+      });
+    }
+  }
+);
+
+// ============================================================
+// PAUSE BOT
+// ============================================================
+
+app.post(
+  "/api/bots/:id/pause",
+  (req, res) => {
+    const bot =
+      bots.find(
+        (item) =>
+          item.id ===
+          req.params.id
+      );
+
+    if (!bot) {
+      return res.status(404).json({
+        success:
+          false,
+
+        error:
+          "Bot not found",
+      });
+    }
+
+    bot.status =
+      "PAUSED";
+
+    res.json({
+      success:
+        true,
+
+      data:
+        bot,
+    });
+  }
+);
+
+// ============================================================
+// RESUME BOT
+// ============================================================
+
+app.post(
+  "/api/bots/:id/resume",
+  (req, res) => {
+    const bot =
+      bots.find(
+        (item) =>
+          item.id ===
+          req.params.id
+      );
+
+    if (!bot) {
+      return res.status(404).json({
+        success:
+          false,
+
+        error:
+          "Bot not found",
+      });
+    }
+
+    bot.status =
+      "ACTIVE";
+
+    res.json({
+      success:
+        true,
+
+      data:
+        bot,
+    });
+  }
+);
+
+// ============================================================
+// DELETE BOT
+// ============================================================
+
+app.delete(
+  "/api/bots/:id",
+  (req, res) => {
+    try {
+      const botId =
+        String(
+          req.params.id || ""
+        ).trim();
+
+      if (!botId) {
+        return res.status(400).json({
+          success:
+            false,
+
+          error:
+            "Bot ID is required",
+        });
+      }
+
+      const index =
+        bots.findIndex(
+          (bot) =>
+            bot.id ===
+            botId
+        );
+
+      if (index === -1) {
+        return res.status(404).json({
+          success:
+            false,
+
+          error:
+            "Bot not found",
+        });
+      }
+
+      // --------------------------------------------------------
+      // Cancel timer if bot is waiting for TP/SL.
+      // --------------------------------------------------------
+
+      const timer =
+        botTimers.get(
+          botId
+        );
+
+      if (timer) {
+        clearTimeout(
+          timer
+        );
+
+        botTimers.delete(
+          botId
+        );
+      }
+
+      const deletedBot =
+        bots[index];
+
+      bots.splice(
+        index,
+        1
+      );
+
+      console.log(
+        `[Bot] Deleted ${deletedBot.name} (${deletedBot.symbol})`
+      );
+
+      res.json({
+        success:
+          true,
+
+        message:
+          "Bot deleted",
+
+        data:
+          deletedBot,
+      });
+    } catch (error) {
+      console.error(
+        "[API] Delete bot error:",
+        error
+      );
+
+      res.status(500).json({
+        success:
+          false,
+
+        error:
+          error.message,
       });
     }
   }
@@ -392,42 +1211,8 @@ app.post(
 app.listen(
   config.port,
   () => {
-    console.log("");
-
     console.log(
-      "=========================================="
+      `WEEX Bot Lab backend running on port ${config.port}`
     );
-
-    console.log(
-      "        WEEX BOT V4 BACKEND"
-    );
-
-    console.log(
-      "=========================================="
-    );
-
-    console.log(
-      `Backend: http://localhost:${config.port}`
-    );
-
-    console.log(
-      `WEEX:    ${config.baseUrl}`
-    );
-
-    console.log(
-      `Auth:    ${
-        config.apiKey &&
-        config.apiSecret &&
-        config.passphrase
-          ? "CONFIGURED"
-          : "MISSING"
-      }`
-    );
-
-    console.log(
-      "=========================================="
-    );
-
-    console.log("");
   }
 );
