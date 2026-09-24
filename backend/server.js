@@ -622,7 +622,29 @@ app.post(
         entryModel,
         stopLoss,
         takeProfit,
+
+        // ------------------------------------------------------
+        // NEW FRONTEND FIELD
+        // ------------------------------------------------------
+        //
+        // New UI sends:
+        //
+        // pyramidPositions
+        //
+        // Old backend used:
+        //
+        // maxPositions
+        //
+        // We support BOTH.
+        // ------------------------------------------------------
+
+        pyramidPositions,
+        maxPositions,
       } = req.body;
+
+      // --------------------------------------------------------
+      // NAME
+      // --------------------------------------------------------
 
       const cleanName =
         String(
@@ -638,6 +660,10 @@ app.post(
             "Bot name is required",
         });
       }
+
+      // --------------------------------------------------------
+      // SYMBOL
+      // --------------------------------------------------------
 
       const cleanSymbol =
         String(
@@ -655,6 +681,10 @@ app.post(
             "Trading symbol is required",
         });
       }
+
+      // --------------------------------------------------------
+      // DIRECTION
+      // --------------------------------------------------------
 
       const cleanDirection =
         String(
@@ -678,14 +708,61 @@ app.post(
         });
       }
 
+      // --------------------------------------------------------
+      // PYRAMID POSITIONS
+      // --------------------------------------------------------
+      //
+      // Frontend:
+      //
+      // pyramidPositions
+      //
+      // Backward compatibility:
+      //
+      // maxPositions
+      //
+      // Default:
+      //
+      // 1 = no additional entries
+      // --------------------------------------------------------
+
+      const requestedPyramidPositions =
+        pyramidPositions !==
+        undefined
+          ? pyramidPositions
+          : maxPositions;
+
+      const cleanPyramidPositions =
+        Number(
+          requestedPyramidPositions ===
+            undefined
+            ? 1
+            : requestedPyramidPositions
+        );
+
+      if (
+        !Number.isInteger(
+          cleanPyramidPositions
+        ) ||
+        ![1, 2, 3].includes(
+          cleanPyramidPositions
+        )
+      ) {
+        return res.status(400).json({
+          success:
+            false,
+
+          error:
+            "Pyramid positions must be 1, 2, or 3",
+        });
+      }
+
+      // --------------------------------------------------------
+      // STOP LOSS
+      // --------------------------------------------------------
+
       const sl =
         Number(
           stopLoss
-        );
-
-      const tp =
-        Number(
-          takeProfit
         );
 
       if (
@@ -701,6 +778,15 @@ app.post(
         });
       }
 
+      // --------------------------------------------------------
+      // TAKE PROFIT
+      // --------------------------------------------------------
+
+      const tp =
+        Number(
+          takeProfit
+        );
+
       if (
         !Number.isFinite(tp) ||
         tp <= 0
@@ -713,6 +799,10 @@ app.post(
             "Take Profit must be greater than 0",
         });
       }
+
+      // --------------------------------------------------------
+      // CREATE BOT
+      // --------------------------------------------------------
 
       const bot = {
         id:
@@ -737,6 +827,65 @@ app.post(
         takeProfit:
           tp,
 
+        // ======================================================
+        // PYRAMID SETTINGS
+        // ======================================================
+        //
+        // pyramidPositions is the official frontend setting.
+        //
+        // maxPositions is kept as a backend compatibility alias.
+        // Both always contain the same value.
+        //
+        // Example:
+        //
+        // 1 = first entry only
+        // 2 = first + second entry
+        // 3 = first + second + third entry
+        // ======================================================
+
+        pyramidPositions:
+          cleanPyramidPositions,
+
+        maxPositions:
+          cleanPyramidPositions,
+
+        currentPositionCount:
+          0,
+
+        // ======================================================
+        // ENTRY STATE
+        // ======================================================
+
+        firstEntryPrice:
+          null,
+
+        averageEntryPrice:
+          null,
+
+        // ======================================================
+        // TP/SL STATE
+        // ======================================================
+
+        originalStopLoss:
+          null,
+
+        currentTakeProfit:
+          null,
+
+        currentTpOrderId:
+          null,
+
+        // ======================================================
+        // INDIVIDUAL TRADE RECORDS
+        // ======================================================
+
+        trades:
+          [],
+
+        // ======================================================
+        // BOT STATUS
+        // ======================================================
+
         status:
           "ACTIVE",
 
@@ -749,7 +898,7 @@ app.post(
       );
 
       console.log(
-        `[Bot] Created ${bot.name} | ${bot.symbol} | ${bot.direction}`
+        `[Bot] Created ${bot.name} | ${bot.symbol} | ${bot.direction} | Pyramid=${bot.pyramidPositions}`
       );
 
       res.json({
@@ -819,7 +968,7 @@ app.post(
     }
 
     // ----------------------------------------------------------
-    // Prevent starting another lifecycle for the same bot.
+    // PREVENT SECOND ENTRY WHILE 30 SECOND LIFECYCLE IS RUNNING
     // ----------------------------------------------------------
 
     if (
@@ -836,9 +985,50 @@ app.post(
       });
     }
 
+    // ----------------------------------------------------------
+    // MAX POSITION CHECK
+    // ----------------------------------------------------------
+    //
+    // pyramidPositions is the official value.
+    //
+    // maxPositions remains supported for older bots.
+    // ----------------------------------------------------------
+
+    const currentCount =
+      Number(
+        bot.currentPositionCount || 0
+      );
+
+    const maxPositions =
+      Number(
+        bot.pyramidPositions ||
+        bot.maxPositions ||
+        1
+      );
+
+    if (
+      currentCount >=
+      maxPositions
+    ) {
+      return res.status(400).json({
+        success:
+          false,
+
+        error:
+          `Maximum positions reached (${maxPositions}/${maxPositions})`,
+      });
+    }
+
+    // ----------------------------------------------------------
+    // NEXT TRADE NUMBER
+    // ----------------------------------------------------------
+
+    const tradeNumber =
+      currentCount + 1;
+
     try {
       console.log(
-        `[Bot:${bot.name}] ENTER ${bot.direction} ${bot.symbol}`
+        `[Bot:${bot.name}] ENTER ${bot.direction} ${bot.symbol} | Trade #${tradeNumber}/${maxPositions}`
       );
 
       // --------------------------------------------------------
@@ -852,11 +1042,51 @@ app.post(
         );
 
       console.log(
-        `[Bot:${bot.name}] Position opened`
+        `[Bot:${bot.name}] Trade #${tradeNumber} position opened`
       );
 
       // --------------------------------------------------------
-      // START 30 SECOND TP/SL TIMER
+      // RECORD TRADE
+      // --------------------------------------------------------
+
+      const trade = {
+        number:
+          tradeNumber,
+
+        direction:
+          bot.direction,
+
+        entryPrice:
+          null,
+
+        averageEntryPrice:
+          null,
+
+        stopLoss:
+          null,
+
+        takeProfit:
+          null,
+
+        timestamp:
+          new Date().toISOString(),
+
+        status:
+          "OPEN",
+
+        execution:
+          entryResult,
+      };
+
+      bot.trades.push(
+        trade
+      );
+
+      bot.currentPositionCount =
+        tradeNumber;
+
+      // --------------------------------------------------------
+      // START 30 SECOND LIFECYCLE
       // --------------------------------------------------------
 
       const timer =
@@ -864,17 +1094,283 @@ app.post(
           async () => {
             try {
               console.log(
-                `[Bot:${bot.name}] 30 seconds complete - creating TP/SL`
+                `[Bot:${bot.name}] Trade #${tradeNumber} | 30 seconds complete`
               );
 
-              await orders.updateTestTpSl(
-                bot.symbol,
-                bot.stopLoss,
-                bot.takeProfit
+              // =================================================
+              // FIRST ENTRY
+              // =================================================
+              //
+              // Create:
+              //
+              //   original SL
+              //   current TP
+              //
+              // =================================================
+
+              const isFirstEntry =
+                tradeNumber ===
+                1;
+
+              // =================================================
+              // LATER ENTRY
+              // =================================================
+              //
+              // Keep:
+              //
+              //   original SL
+              //
+              // Recalculate:
+              //
+              //   TP from current average entry
+              //
+              // =================================================
+
+              const tpSlResult =
+                await orders.updateTestTpSl(
+                  bot.symbol,
+                  bot.stopLoss,
+                  bot.takeProfit,
+                  {
+                    keepOriginalSl:
+                      !isFirstEntry,
+
+                    originalStopLoss:
+                      bot.originalStopLoss,
+
+                    previousTpOrderId:
+                      bot.currentTpOrderId,
+                  }
+                );
+
+              // ------------------------------------------------
+              // READ ACTUAL WEEX POSITION
+              // ------------------------------------------------
+
+              try {
+                const positionResult =
+                  await positions.getAll();
+
+                const positionData =
+                  Array.isArray(
+                    positionResult?.data
+                  )
+                    ? positionResult.data
+                    : [];
+
+                const matchingPosition =
+                  positionData.find(
+                    (position) => {
+                      const positionSymbol =
+                        String(
+                          position?.symbol ||
+                          position?.contract ||
+                          position?.instId ||
+                          ""
+                        )
+                          .toUpperCase()
+                          .trim();
+
+                      const positionSize =
+                        Number(
+                          position?.size ||
+                          position?.positionSize ||
+                          position?.available ||
+                          0
+                        );
+
+                      return (
+                        positionSymbol ===
+                          bot.symbol &&
+                        Number.isFinite(
+                          positionSize
+                        ) &&
+                        Math.abs(
+                          positionSize
+                        ) >
+                          0
+                      );
+                    }
+                  );
+
+                if (
+                  matchingPosition
+                ) {
+                  const averageEntry =
+                    Number(
+                      matchingPosition?.averageEntryPrice ||
+                      matchingPosition?.avgOpenPrice ||
+                      matchingPosition?.entryPrice ||
+                      0
+                    );
+
+                  if (
+                    Number.isFinite(
+                      averageEntry
+                    ) &&
+                    averageEntry > 0
+                  ) {
+                    bot.averageEntryPrice =
+                      averageEntry;
+
+                    // ------------------------------------------
+                    // Trade #1 = FIRST ENTRY
+                    // ------------------------------------------
+
+                    if (
+                      tradeNumber ===
+                      1
+                    ) {
+                      bot.firstEntryPrice =
+                        averageEntry;
+                    }
+
+                    trade.entryPrice =
+                      averageEntry;
+
+                    trade.averageEntryPrice =
+                      averageEntry;
+                  }
+                }
+              } catch (
+                positionSyncError
+              ) {
+                console.error(
+                  `[Bot:${bot.name}] Position sync error:`,
+                  positionSyncError
+                );
+              }
+
+              // =================================================
+              // STORE TP/SL STATE
+              // =================================================
+
+              if (
+                tpSlResult
+              ) {
+                // ------------------------------------------------
+                // Average entry
+                // ------------------------------------------------
+
+                if (
+                  Number.isFinite(
+                    Number(
+                      tpSlResult.entryPrice
+                    )
+                  )
+                ) {
+                  bot.averageEntryPrice =
+                    Number(
+                      tpSlResult.entryPrice
+                    );
+
+                  trade.averageEntryPrice =
+                    Number(
+                      tpSlResult.entryPrice
+                    );
+
+                  // On trade #1 this is also the first entry.
+                  if (
+                    tradeNumber ===
+                    1
+                  ) {
+                    bot.firstEntryPrice =
+                      Number(
+                        tpSlResult.entryPrice
+                      );
+
+                    trade.entryPrice =
+                      Number(
+                        tpSlResult.entryPrice
+                      );
+                  }
+                }
+
+                // ------------------------------------------------
+                // ORIGINAL SL
+                //
+                // ONLY trade #1 is allowed to create the anchor.
+                // ------------------------------------------------
+
+                if (
+                  tradeNumber ===
+                  1 &&
+                  Number.isFinite(
+                    Number(
+                      tpSlResult.stopLoss
+                    )
+                  )
+                ) {
+                  bot.originalStopLoss =
+                    Number(
+                      tpSlResult.stopLoss
+                    );
+                }
+
+                // ------------------------------------------------
+                // Current TP
+                //
+                // This changes after trade #2/#3.
+                // ------------------------------------------------
+
+                if (
+                  Number.isFinite(
+                    Number(
+                      tpSlResult.takeProfit
+                    )
+                  )
+                ) {
+                  bot.currentTakeProfit =
+                    Number(
+                      tpSlResult.takeProfit
+                    );
+                }
+
+                // ------------------------------------------------
+                // TP ORDER ID
+                // ------------------------------------------------
+
+                if (
+                  tpSlResult.tpOrderId
+                ) {
+                  bot.currentTpOrderId =
+                    String(
+                      tpSlResult.tpOrderId
+                    );
+                }
+
+                // ------------------------------------------------
+                // Store trade-level SL / TP
+                // ------------------------------------------------
+
+                trade.stopLoss =
+                  Number(
+                    bot.originalStopLoss ||
+                    tpSlResult.stopLoss ||
+                    0
+                  );
+
+                trade.takeProfit =
+                  Number(
+                    tpSlResult.takeProfit ||
+                    0
+                  );
+              }
+
+              // =================================================
+              // FINAL STATE LOG
+              // =================================================
+
+              console.log(
+                `[Bot:${bot.name}] Trade #${tradeNumber} TP/SL lifecycle complete`
               );
 
               console.log(
-                `[Bot:${bot.name}] TP/SL created`
+                `[Bot:${bot.name}] State | positions=${bot.currentPositionCount}/${maxPositions} | firstEntry=${bot.firstEntryPrice} | averageEntry=${bot.averageEntryPrice} | originalSL=${bot.originalStopLoss} | currentTP=${bot.currentTakeProfit} | tpOrderId=${bot.currentTpOrderId}`
+              );
+
+              console.log(
+                `[Bot:${bot.name}] Trade #${tradeNumber} | entry=${trade.entryPrice} | average=${trade.averageEntryPrice} | SL=${trade.stopLoss} | TP=${trade.takeProfit}`
               );
             } catch (error) {
               console.error(
@@ -895,12 +1391,16 @@ app.post(
         timer
       );
 
+      // ========================================================
+      // IMMEDIATE RESPONSE
+      // ========================================================
+
       res.json({
         success:
           true,
 
         message:
-          "Position opened. TP/SL will be created in 30 seconds.",
+          `Trade #${tradeNumber} opened. TP/SL lifecycle will run in 30 seconds.`,
 
         data: {
           botId:
@@ -914,6 +1414,33 @@ app.post(
 
           direction:
             bot.direction,
+
+          tradeNumber:
+            tradeNumber,
+
+          currentPositionCount:
+            bot.currentPositionCount,
+
+          pyramidPositions:
+            bot.pyramidPositions,
+
+          maxPositions:
+            bot.maxPositions,
+
+          firstEntryPrice:
+            bot.firstEntryPrice,
+
+          averageEntryPrice:
+            bot.averageEntryPrice,
+
+          originalStopLoss:
+            bot.originalStopLoss,
+
+          currentTakeProfit:
+            bot.currentTakeProfit,
+
+          currentTpOrderId:
+            bot.currentTpOrderId,
 
           delaySeconds:
             30,
@@ -970,7 +1497,7 @@ app.post(
 
     try {
       // --------------------------------------------------------
-      // Cancel pending TP/SL timer.
+      // CANCEL PENDING TIMER
       // --------------------------------------------------------
 
       const timer =
@@ -993,7 +1520,7 @@ app.post(
       }
 
       // --------------------------------------------------------
-      // Close actual position.
+      // CLOSE ACTUAL POSITION
       // --------------------------------------------------------
 
       const result =
@@ -1005,6 +1532,44 @@ app.post(
         `[Bot:${bot.name}] Position closed`
       );
 
+      // --------------------------------------------------------
+      // CLEAR TRACKED TP
+      // --------------------------------------------------------
+
+      if (
+        typeof orders.clearTrackedTp ===
+        "function"
+      ) {
+        orders.clearTrackedTp(
+          bot.symbol
+        );
+      }
+
+      // --------------------------------------------------------
+      // RESET BOT POSITION STATE
+      // --------------------------------------------------------
+
+      bot.currentPositionCount =
+        0;
+
+      bot.firstEntryPrice =
+        null;
+
+      bot.averageEntryPrice =
+        null;
+
+      bot.originalStopLoss =
+        null;
+
+      bot.currentTakeProfit =
+        null;
+
+      bot.currentTpOrderId =
+        null;
+
+      bot.trades =
+        [];
+
       res.json({
         success:
           true,
@@ -1014,6 +1579,35 @@ app.post(
 
         data:
           result,
+
+        botState: {
+          currentPositionCount:
+            bot.currentPositionCount,
+
+          pyramidPositions:
+            bot.pyramidPositions,
+
+          maxPositions:
+            bot.maxPositions,
+
+          firstEntryPrice:
+            bot.firstEntryPrice,
+
+          averageEntryPrice:
+            bot.averageEntryPrice,
+
+          originalStopLoss:
+            bot.originalStopLoss,
+
+          currentTakeProfit:
+            bot.currentTakeProfit,
+
+          currentTpOrderId:
+            bot.currentTpOrderId,
+
+          trades:
+            bot.trades,
+        },
       });
     } catch (error) {
       console.error(
@@ -1147,7 +1741,7 @@ app.delete(
       }
 
       // --------------------------------------------------------
-      // Cancel timer if bot is waiting for TP/SL.
+      // CANCEL TIMER
       // --------------------------------------------------------
 
       const timer =
@@ -1167,6 +1761,20 @@ app.delete(
 
       const deletedBot =
         bots[index];
+
+      // --------------------------------------------------------
+      // CLEAR TRACKED TP
+      // --------------------------------------------------------
+
+      if (
+        deletedBot?.symbol &&
+        typeof orders.clearTrackedTp ===
+          "function"
+      ) {
+        orders.clearTrackedTp(
+          deletedBot.symbol
+        );
+      }
 
       bots.splice(
         index,
@@ -1216,3 +1824,4 @@ app.listen(
     );
   }
 );
+

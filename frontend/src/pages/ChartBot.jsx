@@ -7,6 +7,7 @@ import {
 import {
   createChart,
   CandlestickSeries,
+  createSeriesMarkers,
 } from "lightweight-charts";
 
 import {
@@ -63,6 +64,18 @@ function ChartBot() {
   const candleSeriesRef =
     useRef(null);
 
+  const markersRef =
+    useRef(null);
+
+  const entryMarkersRef =
+    useRef([]);
+
+  const entryCountRef =
+    useRef(0);
+
+  const latestCandleRef =
+    useRef(null);
+
   const selectedBotRef =
     useRef(null);
 
@@ -110,6 +123,118 @@ function ChartBot() {
 
   selectedBotRef.current =
     selectedBot;
+
+  // ============================================================
+  // CLEAR ENTRY MARKERS
+  // ============================================================
+
+  function clearEntryMarkers() {
+    entryMarkersRef.current =
+      [];
+
+    entryCountRef.current =
+      0;
+
+    if (
+      markersRef.current
+    ) {
+      markersRef.current.setMarkers(
+        []
+      );
+    }
+  }
+
+  // ============================================================
+  // ADD ENTRY MARKER
+  // ============================================================
+
+  function addEntryMarker(
+    direction
+  ) {
+    if (
+      !markersRef.current ||
+      !latestCandleRef.current
+    ) {
+      console.warn(
+        "[Chart Bot] Cannot add entry marker - chart candle unavailable"
+      );
+
+      return;
+    }
+
+    const normalizedDirection =
+      String(
+        direction || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      !["LONG", "SHORT"].includes(
+        normalizedDirection
+      )
+    ) {
+      return;
+    }
+
+    entryCountRef.current +=
+      1;
+
+    const entryNumber =
+      entryCountRef.current;
+
+    const candle =
+      latestCandleRef.current;
+
+    const marker =
+      normalizedDirection ===
+      "LONG"
+        ? {
+            time:
+              candle.time,
+
+            position:
+              "belowBar",
+
+            color:
+              "#22c55e",
+
+            shape:
+              "arrowUp",
+
+            text:
+              `LONG #${entryNumber}`,
+          }
+        : {
+            time:
+              candle.time,
+
+            position:
+              "aboveBar",
+
+            color:
+              "#ef4444",
+
+            shape:
+              "arrowDown",
+
+            text:
+              `SHORT #${entryNumber}`,
+          };
+
+    entryMarkersRef.current = [
+      ...entryMarkersRef.current,
+      marker,
+    ];
+
+    markersRef.current.setMarkers(
+      entryMarkersRef.current
+    );
+
+    console.log(
+      `[Chart Bot] ${normalizedDirection} #${entryNumber} marker added at candle ${candle.time}`
+    );
+  }
 
   // ============================================================
   // LOAD BOTS
@@ -224,6 +349,32 @@ function ChartBot() {
       candleSeriesRef.current.setData(
         result.data
       );
+
+      // --------------------------------------------------------
+      // Save latest candle for entry markers.
+      // --------------------------------------------------------
+
+      if (
+        result.data.length >
+        0
+      ) {
+        latestCandleRef.current =
+          result.data[
+            result.data.length - 1
+          ];
+      }
+
+      // --------------------------------------------------------
+      // Re-apply entry markers after chart refresh.
+      // --------------------------------------------------------
+
+      if (
+        markersRef.current
+      ) {
+        markersRef.current.setMarkers(
+          entryMarkersRef.current
+        );
+      }
 
       if (
         !keepZoom &&
@@ -352,11 +503,24 @@ function ChartBot() {
         }
       );
 
+    // ----------------------------------------------------------
+    // MARKER CONTROLLER
+    // ----------------------------------------------------------
+
+    const markerController =
+      createSeriesMarkers(
+        candleSeries,
+        []
+      );
+
     chartRef.current =
       chart;
 
     candleSeriesRef.current =
       candleSeries;
+
+    markersRef.current =
+      markerController;
 
     const handleResize =
       () => {
@@ -394,6 +558,9 @@ function ChartBot() {
 
       candleSeriesRef.current =
         null;
+
+      markersRef.current =
+        null;
     };
   }, []);
 
@@ -407,6 +574,12 @@ function ChartBot() {
     ) {
       return;
     }
+
+    // New bot = new chart marker set.
+    clearEntryMarkers();
+
+    latestCandleRef.current =
+      null;
 
     if (
       candleSeriesRef.current
@@ -468,6 +641,14 @@ function ChartBot() {
           selectedBot.id
         );
 
+      // --------------------------------------------------------
+      // Add chart marker after successful entry.
+      // --------------------------------------------------------
+
+      addEntryMarker(
+        selectedBot.direction
+      );
+
       setMessage(
         result.message ||
           `${selectedBot.direction} position opened. TP/SL will be added in 30 seconds.`
@@ -504,6 +685,13 @@ function ChartBot() {
         await closeBot(
           selectedBot.id
         );
+
+      // --------------------------------------------------------
+      // Position is closed.
+      // Clear all entry markers.
+      // --------------------------------------------------------
+
+      clearEntryMarkers();
 
       setMessage(
         result.message ||
