@@ -1,0 +1,14 @@
+{
+  "name": "weex-bot-v4-backend",
+  "version": "1.0.0",
+  "description": "Clean WEEX Bot V4 backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0"
+  }
+}

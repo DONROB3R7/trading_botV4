@@ -1,0 +1,339 @@
+/* ============================================================
+   TRADE TEST
+   ============================================================ */
+
+.trade-test-page {
+  display: flex;
+  flex-direction: column;
+
+  gap: 24px;
+}
+
+.warning-card {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 14px;
+
+  padding: 18px;
+
+  border:
+    1px solid #604e2b;
+
+  border-radius: 10px;
+
+  background:
+    #211c12;
+}
+
+.warning-icon {
+  font-size: 24px;
+}
+
+.warning-card strong {
+  color: #f2d08a;
+
+  font-size: 13px;
+}
+
+.warning-card p {
+  margin: 5px 0 0;
+
+  color: #b7a681;
+
+  font-size: 13px;
+
+  line-height: 1.5;
+}
+
+.success-box {
+  padding: 14px 16px;
+
+  border:
+    1px solid #27634b;
+
+  border-radius: 8px;
+
+  background:
+    #0e251d;
+
+  color: #9de0bd;
+
+  font-weight: 800;
+}
+
+.error-box {
+  padding: 14px 16px;
+
+  border:
+    1px solid #6d3434;
+
+  border-radius: 8px;
+
+  background:
+    #281719;
+
+  color: #ffb3b3;
+
+  font-weight: 700;
+}
+
+.test-grid {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+
+  gap: 18px;
+}
+
+.info-panel,
+.trade-panel {
+  padding: 24px;
+
+  border:
+    1px solid #19364b;
+
+  border-radius: 12px;
+
+  background:
+    #0a1925;
+}
+
+.panel-title {
+  padding-bottom: 16px;
+
+  border-bottom:
+    1px solid #173044;
+
+  color: #8eabbc;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  letter-spacing: 1.2px;
+}
+
+.metrics {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 1px;
+
+  margin-top: 16px;
+
+  overflow: hidden;
+
+  border:
+    1px solid #19364b;
+
+  border-radius: 8px;
+}
+
+.metric {
+  padding: 14px;
+
+  background:
+    #0d1e2b;
+}
+
+.metric span {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color: #6f8797;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  text-transform: uppercase;
+}
+
+.metric strong {
+  color: #eaf3f8;
+
+  font-size: 14px;
+}
+
+.loading {
+  padding: 40px 0;
+
+  color: #7892a3;
+
+  text-align: center;
+}
+
+.position-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  margin-top: 20px;
+  margin-bottom: 18px;
+
+  padding: 13px 14px;
+
+  border:
+    1px solid #19364b;
+
+  border-radius: 8px;
+
+  background:
+    #0d1e2b;
+
+  color: #7d95a5;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.position-flat {
+  color: #78cda4;
+}
+
+.position-open {
+  color: #ffb16b;
+}
+
+.trade-buttons {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 12px;
+}
+
+.trade-button {
+  min-height: 130px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  border-radius: 10px;
+
+  color: #ffffff;
+
+  font-size: 15px;
+  font-weight: 900;
+
+  transition:
+    transform 0.12s ease,
+    opacity 0.12s ease,
+    filter 0.12s ease;
+}
+
+.trade-button:hover:not(:disabled) {
+  transform:
+    translateY(-2px);
+
+  filter:
+    brightness(1.1);
+}
+
+.trade-button:active:not(:disabled) {
+  transform:
+    translateY(1px);
+}
+
+.trade-button:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.35;
+}
+
+.trade-button.long {
+  border:
+    1px solid #276c50;
+
+  background:
+    #123c2c;
+}
+
+.trade-button.short {
+  border:
+    1px solid #713c3c;
+
+  background:
+    #3c171b;
+}
+
+.trade-icon {
+  font-size: 32px;
+}
+
+.position-note {
+  margin-top: 14px;
+
+  padding: 12px;
+
+  border:
+    1px solid #4d4028;
+
+  border-radius: 8px;
+
+  background:
+    #211c12;
+
+  color: #b8a982;
+
+  font-size: 12px;
+
+  line-height: 1.5;
+}
+
+@media (max-width: 850px) {
+  .test-grid {
+    grid-template-columns:
+      1fr;
+  }
+}
+
+@media (max-width: 550px) {
+  .metrics {
+    grid-template-columns:
+      1fr;
+  }
+
+  .trade-buttons {
+    grid-template-columns:
+      1fr;
+  }
+}
+
+.tpsl-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.tpsl-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.tpsl-inputs input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #0f172a;
+  color: white;
+  font-size: 16px;
+}
+
+.tpsl-inputs input:disabled {
+  opacity: 0.5;
+}

@@ -1,0 +1,202 @@
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+
+  gap: 24px;
+}
+
+.page-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+
+  gap: 20px;
+}
+
+.eyebrow {
+  margin-bottom: 8px;
+
+  color: #5f91b3;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  letter-spacing: 1.5px;
+}
+
+.page-heading h1 {
+  margin: 0;
+
+  font-size: 34px;
+  line-height: 1;
+}
+
+.page-heading p {
+  margin: 10px 0 0;
+
+  color: #8198a9;
+
+  font-size: 14px;
+}
+
+.refresh-button {
+  padding: 10px 14px;
+
+  border:
+    1px solid #24465d;
+
+  border-radius: 8px;
+
+  color: #d9e7f0;
+
+  background:
+    #102333;
+
+  font-weight: 800;
+}
+
+.refresh-button:hover {
+  background:
+    #143047;
+}
+
+.error-box {
+  padding: 14px 16px;
+
+  border:
+    1px solid #6d3434;
+
+  border-radius: 8px;
+
+  background:
+    #281719;
+
+  color: #ffb3b3;
+
+  font-weight: 700;
+}
+
+.dashboard-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 16px;
+}
+
+.status-card {
+  display: flex;
+  align-items: center;
+
+  gap: 16px;
+
+  padding: 22px;
+
+  border:
+    1px solid #19364b;
+
+  border-radius: 12px;
+
+  background:
+    #0b1b28;
+}
+
+.card-icon {
+  width: 46px;
+  height: 46px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 10px;
+
+  background:
+    #10283a;
+
+  font-size: 22px;
+}
+
+.card-label {
+  color: #718b9d;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: 1px;
+}
+
+.card-value {
+  margin-top: 4px;
+
+  color: #ffffff;
+
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.welcome-card {
+  display: flex;
+  align-items: center;
+
+  gap: 18px;
+
+  padding: 26px;
+
+  border:
+    1px solid #19364b;
+
+  border-radius: 12px;
+
+  background:
+    #0a1925;
+}
+
+.welcome-icon {
+  width: 56px;
+  height: 56px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 12px;
+
+  background:
+    #132c3e;
+
+  font-size: 28px;
+}
+
+.welcome-card h2 {
+  margin: 0;
+
+  font-size: 20px;
+}
+
+.welcome-card p {
+  margin: 7px 0 0;
+
+  color: #8da3b2;
+
+  line-height: 1.6;
+}
+
+@media (max-width: 800px) {
+  .dashboard-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+  .page-heading {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,144 @@
+/* ============================================================
+   NAVBAR
+   ============================================================ */
+
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+
+  border-bottom:
+    1px solid #1b3447;
+
+  background:
+    #091722;
+}
+
+.navbar-inner {
+  width: 100%;
+  max-width: 1400px;
+
+  min-height: 76px;
+
+  margin: 0 auto;
+  padding: 12px 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+}
+
+.brand-icon {
+  width: 44px;
+  height: 44px;
+
+  display: grid;
+  place-items: center;
+
+  border:
+    1px solid #29485d;
+
+  border-radius: 10px;
+
+  background:
+    #102333;
+
+  font-size: 24px;
+}
+
+.brand-title {
+  font-size: 16px;
+  font-weight: 900;
+
+  letter-spacing: 1px;
+}
+
+.brand-subtitle {
+  margin-top: 2px;
+
+  color: #7f9aac;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 10px 14px;
+
+  border:
+    1px solid transparent;
+
+  border-radius: 8px;
+
+  color: #91a8b8;
+
+  font-size: 13px;
+  font-weight: 800;
+
+  transition:
+    0.15s ease;
+}
+
+.nav-link:hover {
+  color: #ffffff;
+
+  background:
+    #102333;
+
+  border-color:
+    #1d3b50;
+}
+
+.nav-link.active {
+  color: #ffffff;
+
+  background:
+    #12314a;
+
+  border-color:
+    #245a80;
+}
+
+@media (max-width: 700px) {
+  .navbar-inner {
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    padding-bottom: 14px;
+  }
+
+  .nav-links {
+    width: 100%;
+  }
+
+  .nav-link {
+    flex: 1;
+
+    justify-content: center;
+  }
+}
