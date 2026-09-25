@@ -135,7 +135,10 @@ app.use(
 // ============================================================
 
 const entryModelsRouter =
-  createEntryModelsRouter();
+  createEntryModelsRouter({
+    getBot:
+      botsRouter.getBot,
+  });
 
 app.use(
   "/api/entry-models",

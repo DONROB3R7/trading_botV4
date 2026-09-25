@@ -22,249 +22,17 @@ import {
 
 import "./EntryModel.css";
 
-/* ============================================================
-   HELPERS
-   ============================================================ */
-
-function normalizeDirection(value) {
-  const direction =
-    String(value || "").toUpperCase();
-
-  if (direction === "LONG") {
-    return "LONG";
-  }
-
-  if (direction === "SHORT") {
-    return "SHORT";
-  }
-
-  return "NEUTRAL";
-}
-
-
-function majorityDirection(
-  scans,
-  depth
-) {
-  let long = 0;
-  let short = 0;
-
-  for (const scan of scans) {
-    const item =
-      scan?.depths?.find(
-        (depthItem) =>
-          Number(depthItem.depth) ===
-          Number(depth)
-      );
-
-    const direction =
-      normalizeDirection(
-        item?.direction
-      );
-
-    if (direction === "LONG") {
-      long++;
-    }
-
-    if (direction === "SHORT") {
-      short++;
-    }
-  }
-
-  if (long > short) {
-    return "LONG";
-  }
-
-  if (short > long) {
-    return "SHORT";
-  }
-
-  return "NEUTRAL";
-}
-
-
-function normalizeCandle(candle) {
-  if (!candle) {
-    return null;
-  }
-
-  let time;
-  let open;
-  let high;
-  let low;
-  let close;
-
-  if (Array.isArray(candle)) {
-    time = Number(candle[0]);
-    open = Number(candle[1]);
-    high = Number(candle[2]);
-    low = Number(candle[3]);
-    close = Number(candle[4]);
-  } else {
-    time = Number(
-      candle.time ??
-      candle.timestamp ??
-      candle.ts ??
-      candle.openTime
-    );
-
-    open = Number(candle.open);
-    high = Number(candle.high);
-    low = Number(candle.low);
-    close = Number(candle.close);
-  }
-
-  if (
-    !Number.isFinite(time) ||
-    !Number.isFinite(open) ||
-    !Number.isFinite(high) ||
-    !Number.isFinite(low) ||
-    !Number.isFinite(close)
-  ) {
-    return null;
-  }
-
-  if (
-    time >
-    100000000000
-  ) {
-    time =
-      Math.floor(
-        time / 1000
-      );
-  }
-
-  return {
-    time,
-    open,
-    high,
-    low,
-    close,
-  };
-}
-
-
-/* ============================================================
-   TIMESTAMP HELPER
-   ============================================================ */
-
-function normalizeTimestamp(
-  value
-) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return null;
-  }
-
-  if (
-    typeof value ===
-    "number"
-  ) {
-    if (
-      !Number.isFinite(
-        value
-      )
-    ) {
-      return null;
-    }
-
-    if (
-      value >
-      100000000000
-    ) {
-      return Math.floor(
-        value / 1000
-      );
-    }
-
-    return Math.floor(value);
-  }
-
-  const stringValue =
-    String(value).trim();
-
-  if (!stringValue) {
-    return null;
-  }
-
-  const numericValue =
-    Number(stringValue);
-
-  if (
-    Number.isFinite(
-      numericValue
-    )
-  ) {
-    if (
-      numericValue >
-      100000000000
-    ) {
-      return Math.floor(
-        numericValue / 1000
-      );
-    }
-
-    return Math.floor(
-      numericValue
-    );
-  }
-
-  const parsed =
-    Date.parse(
-      stringValue
-    );
-
-  if (
-    !Number.isFinite(
-      parsed
-    )
-  ) {
-    return null;
-  }
-
-  return Math.floor(
-    parsed / 1000
-  );
-}
-
-
-/* ============================================================
-   PERCENTAGE FORMAT
-   ============================================================ */
-
-function formatPercentage(
-  value
-) {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
-    return "";
-  }
-
-  const number =
-    Number(value);
-
-  if (
-    !Number.isFinite(
-      number
-    )
-  ) {
-    return "";
-  }
-
-  return `${number.toFixed(2)}%`;
-}
-
 
 /* ============================================================
    COMPONENT
    ============================================================ */
 
 export default function EntryModel() {
+
+  /* ==========================================================
+     BOT STATE
+     ========================================================== */
+
   const [
     bots,
     setBots,
@@ -275,35 +43,40 @@ export default function EntryModel() {
     setSelectedBotId,
   ] = useState("");
 
+
+  /* ==========================================================
+     CHART STATE
+     ========================================================== */
+
   const [
     chartData,
     setChartData,
   ] = useState([]);
 
   const [
-    previousCycles,
-    setPreviousCycles,
-  ] = useState([]);
+    loadingChart,
+    setLoadingChart,
+  ] = useState(false);
+
+
+  /* ==========================================================
+     SERVER ENTRY MODEL STATE
+     ========================================================== */
 
   const [
-    currentScans,
-    setCurrentScans,
-  ] = useState([]);
+    engineState,
+    setEngineState,
+  ] = useState(null);
 
-  const [
-    scanCount,
-    setScanCount,
-  ] = useState(0);
+
+  /* ==========================================================
+     GENERAL STATE
+     ========================================================== */
 
   const [
     loadingBots,
     setLoadingBots,
   ] = useState(true);
-
-  const [
-    loadingChart,
-    setLoadingChart,
-  ] = useState(false);
 
   const [
     error,
@@ -341,18 +114,14 @@ export default function EntryModel() {
   const chartHasFittedRef =
     useRef(false);
 
-
-  /* ==========================================================
-     SERVER ENGINE
-     ========================================================== */
-
   const chartRefreshTimerRef =
     useRef(null);
 
-  /*
-   * Prevent overlapping engine connection
-   * requests when bot state changes quickly.
-   */
+
+  /* ==========================================================
+     ENGINE CONNECTION
+     ========================================================== */
+
   const engineConnectionRef =
     useRef(0);
 
@@ -374,34 +143,72 @@ export default function EntryModel() {
     ]);
 
 
+  /*
+   * IMPORTANT
+   *
+   * React does NOT calculate the bot direction.
+   *
+   * The bot object comes from the backend.
+   */
   const botDirection =
-    normalizeDirection(
-      selectedBot?.direction
-    );
-
-  console.log(
-    "[Entry Model] SELECTED BOT DATA:",
-    selectedBot
-  );
-
-  console.log(
-    "[Entry Model] BOT DIRECTION RAW:",
-    selectedBot?.direction,
-    "| NORMALIZED:",
-    botDirection
-  );
+    selectedBot?.direction || "";
 
 
+  /*
+   * IMPORTANT
+   *
+   * React does NOT calculate trigger state.
+   *
+   * This is simply displaying the
+   * value supplied by the backend.
+   */
   const triggerState =
-    String(
-      selectedBot?.triggerState ||
-      ""
-    ).toUpperCase();
+    selectedBot?.triggerState || "";
 
 
   const isArmed =
-    triggerState ===
-    "ARMED";
+    triggerState === "ARMED";
+
+
+  /*
+   * SERVER IS THE SOURCE OF TRUTH
+   *
+   * Everything below comes directly from
+   * the Entry Model engine.
+   */
+
+  const currentScans =
+    Array.isArray(
+      engineState?.currentScans
+    )
+      ? engineState.currentScans
+      : [];
+
+
+  const previousCycles =
+    Array.isArray(
+      engineState?.previousCycles
+    )
+      ? engineState.previousCycles
+      : [];
+
+
+  const scanCount =
+    Number(
+      engineState?.scanCount || 0
+    );
+
+
+  const cycleNumber =
+    Number(
+      engineState?.cycleNumber || 0
+    );
+
+
+  const running =
+    Boolean(
+      engineState?.running
+    );
 
 
   /* ==========================================================
@@ -411,7 +218,9 @@ export default function EntryModel() {
   const loadBots =
     useCallback(
       async () => {
+
         try {
+
           setLoadingBots(
             true
           );
@@ -436,13 +245,18 @@ export default function EntryModel() {
               ? response.data
               : [];
 
-          setBots(list);
+          setBots(
+            list
+          );
+
 
           if (
             list.length > 0
           ) {
+
             setSelectedBotId(
               (current) => {
+
                 if (
                   current &&
                   list.some(
@@ -463,11 +277,17 @@ export default function EntryModel() {
                 );
               }
             );
+
           } else {
-            setSelectedBotId("");
+
+            setSelectedBotId(
+              ""
+            );
+
           }
 
         } catch (err) {
+
           console.error(
             "[Entry Model] Bot load error:",
             err
@@ -479,10 +299,13 @@ export default function EntryModel() {
           );
 
         } finally {
+
           setLoadingBots(
             false
           );
+
         }
+
       },
       []
     );
@@ -493,12 +316,15 @@ export default function EntryModel() {
      ========================================================== */
 
   useEffect(() => {
+
     loadBots();
 
     return () => {
+
       if (
         chartRefreshTimerRef.current
       ) {
+
         clearInterval(
           chartRefreshTimerRef.current
         );
@@ -506,7 +332,9 @@ export default function EntryModel() {
         chartRefreshTimerRef.current =
           null;
       }
+
     };
+
   }, [
     loadBots,
   ]);
@@ -521,29 +349,37 @@ export default function EntryModel() {
       async (
         showLoading = true
       ) => {
+
         const symbol =
           selectedBot?.symbol;
 
         if (!symbol) {
+
           setChartData([]);
 
           return;
         }
 
+
         try {
+
           if (
             showLoading
           ) {
+
             setLoadingChart(
               true
             );
+
           }
+
 
           const response =
             await getChart(
               symbol,
               "15m"
             );
+
 
           const rawData =
             Array.isArray(
@@ -564,27 +400,162 @@ export default function EntryModel() {
               ? response.klines
               : [];
 
+
+          /*
+           * Chart data conversion only.
+           *
+           * This is NOT Entry Model logic.
+           * It only converts the chart API response
+           * into the format Lightweight Charts needs.
+           */
+
           const normalized =
             rawData
               .map(
-                normalizeCandle
+                (candle) => {
+
+                  if (!candle) {
+                    return null;
+                  }
+
+                  let time;
+                  let open;
+                  let high;
+                  let low;
+                  let close;
+
+
+                  if (
+                    Array.isArray(
+                      candle
+                    )
+                  ) {
+
+                    time =
+                      Number(
+                        candle[0]
+                      );
+
+                    open =
+                      Number(
+                        candle[1]
+                      );
+
+                    high =
+                      Number(
+                        candle[2]
+                      );
+
+                    low =
+                      Number(
+                        candle[3]
+                      );
+
+                    close =
+                      Number(
+                        candle[4]
+                      );
+
+                  } else {
+
+                    time =
+                      Number(
+                        candle.time ??
+                        candle.timestamp ??
+                        candle.ts ??
+                        candle.openTime
+                      );
+
+                    open =
+                      Number(
+                        candle.open
+                      );
+
+                    high =
+                      Number(
+                        candle.high
+                      );
+
+                    low =
+                      Number(
+                        candle.low
+                      );
+
+                    close =
+                      Number(
+                        candle.close
+                      );
+
+                  }
+
+
+                  if (
+                    !Number.isFinite(
+                      time
+                    ) ||
+                    !Number.isFinite(
+                      open
+                    ) ||
+                    !Number.isFinite(
+                      high
+                    ) ||
+                    !Number.isFinite(
+                      low
+                    ) ||
+                    !Number.isFinite(
+                      close
+                    )
+                  ) {
+
+                    return null;
+                  }
+
+
+                  if (
+                    time >
+                    100000000000
+                  ) {
+
+                    time =
+                      Math.floor(
+                        time / 1000
+                      );
+
+                  }
+
+
+                  return {
+                    time,
+                    open,
+                    high,
+                    low,
+                    close,
+                  };
+
+                }
               )
-              .filter(Boolean)
+              .filter(
+                Boolean
+              )
               .sort(
                 (a, b) =>
                   a.time -
                   b.time
               );
 
+
           setChartData(
             normalized
           );
+
 
           console.log(
             `[Entry Model] Chart refreshed | ${symbol} | candles=${normalized.length}`
           );
 
+
         } catch (err) {
+
           console.error(
             "[Entry Model] Chart load error:",
             err
@@ -595,15 +566,21 @@ export default function EntryModel() {
             "Failed to load chart."
           );
 
+
         } finally {
+
           if (
             showLoading
           ) {
+
             setLoadingChart(
               false
             );
+
           }
+
         }
+
       },
       [
         selectedBot?.symbol,
@@ -616,25 +593,33 @@ export default function EntryModel() {
      ========================================================== */
 
   useEffect(() => {
+
     let cancelled =
       false;
 
+
     async function initialLoad() {
+
       const symbol =
         selectedBot?.symbol;
 
+
       if (!symbol) {
+
         setChartData([]);
 
         return;
       }
 
+
       try {
+
         setLoadingChart(
           true
         );
 
         setError("");
+
 
         const response =
           await getChart(
@@ -642,11 +627,13 @@ export default function EntryModel() {
             "15m"
           );
 
+
         if (
           cancelled
         ) {
           return;
         }
+
 
         const rawData =
           Array.isArray(
@@ -667,37 +654,166 @@ export default function EntryModel() {
             ? response.klines
             : [];
 
+
         const normalized =
           rawData
             .map(
-              normalizeCandle
+              (candle) => {
+
+                if (!candle) {
+                  return null;
+                }
+
+                let time;
+                let open;
+                let high;
+                let low;
+                let close;
+
+
+                if (
+                  Array.isArray(
+                    candle
+                  )
+                ) {
+
+                  time =
+                    Number(
+                      candle[0]
+                    );
+
+                  open =
+                    Number(
+                      candle[1]
+                    );
+
+                  high =
+                    Number(
+                      candle[2]
+                    );
+
+                  low =
+                    Number(
+                      candle[3]
+                    );
+
+                  close =
+                    Number(
+                      candle[4]
+                    );
+
+                } else {
+
+                  time =
+                    Number(
+                      candle.time ??
+                      candle.timestamp ??
+                      candle.ts ??
+                      candle.openTime
+                    );
+
+                  open =
+                    Number(
+                      candle.open
+                    );
+
+                  high =
+                    Number(
+                      candle.high
+                    );
+
+                  low =
+                    Number(
+                      candle.low
+                    );
+
+                  close =
+                    Number(
+                      candle.close
+                    );
+
+                }
+
+
+                if (
+                  !Number.isFinite(
+                    time
+                  ) ||
+                  !Number.isFinite(
+                    open
+                  ) ||
+                  !Number.isFinite(
+                    high
+                  ) ||
+                  !Number.isFinite(
+                    low
+                  ) ||
+                  !Number.isFinite(
+                    close
+                  )
+                ) {
+
+                  return null;
+                }
+
+
+                if (
+                  time >
+                  100000000000
+                ) {
+
+                  time =
+                    Math.floor(
+                      time / 1000
+                    );
+
+                }
+
+
+                return {
+                  time,
+                  open,
+                  high,
+                  low,
+                  close,
+                };
+
+              }
             )
-            .filter(Boolean)
+            .filter(
+              Boolean
+            )
             .sort(
               (a, b) =>
                 a.time -
                 b.time
             );
 
+
         setChartData(
           normalized
         );
+
 
         console.log(
           `[Entry Model] Initial chart load | ${symbol} | candles=${normalized.length}`
         );
 
+
       } catch (err) {
+
         if (
           cancelled
         ) {
           return;
         }
 
+
         console.error(
           "[Entry Model] Chart load error:",
           err
         );
+
 
         setChartData([]);
 
@@ -706,23 +822,34 @@ export default function EntryModel() {
           "Failed to load chart."
         );
 
+
       } finally {
+
         if (
           !cancelled
         ) {
+
           setLoadingChart(
             false
           );
+
         }
+
       }
+
     }
+
 
     initialLoad();
 
+
     return () => {
+
       cancelled =
         true;
+
     };
+
   }, [
     selectedBot?.symbol,
   ]);
@@ -733,45 +860,60 @@ export default function EntryModel() {
      ========================================================== */
 
   useEffect(() => {
+
     if (
       chartRefreshTimerRef.current
     ) {
+
       clearInterval(
         chartRefreshTimerRef.current
       );
 
       chartRefreshTimerRef.current =
         null;
+
     }
+
 
     if (
       !selectedBot?.symbol
     ) {
+
       return;
+
     }
+
 
     chartRefreshTimerRef.current =
       setInterval(
         () => {
+
           loadChartData(
             false
           );
+
         },
         60 * 1000
       );
 
+
     return () => {
+
       if (
         chartRefreshTimerRef.current
       ) {
+
         clearInterval(
           chartRefreshTimerRef.current
         );
 
         chartRefreshTimerRef.current =
           null;
+
       }
+
     };
+
   }, [
     selectedBot?.symbol,
     loadChartData,
@@ -780,41 +922,50 @@ export default function EntryModel() {
 
   /* ==========================================================
      CREATE CHART
-
-     IMPORTANT:
-     The chart container ALWAYS exists in JSX.
-     We do not wait for chartData/loading state.
      ========================================================== */
 
   useEffect(() => {
+
     const container =
       chartContainerRef.current;
 
+
     if (!container) {
+
       console.log(
         "[Entry Model] Chart container not ready"
       );
 
       return;
+
     }
+
 
     if (
       !selectedBot?.symbol
     ) {
+
       return;
+
     }
+
 
     if (
       chartRef.current
     ) {
+
       return;
+
     }
+
 
     chartGenerationRef.current +=
       1;
 
+
     const generation =
       chartGenerationRef.current;
+
 
     const chart =
       createChart(
@@ -827,6 +978,7 @@ export default function EntryModel() {
             600,
 
           layout: {
+
             background: {
               color:
                 "#0d1728",
@@ -834,9 +986,11 @@ export default function EntryModel() {
 
             textColor:
               "#94a3b8",
+
           },
 
           grid: {
+
             vertLines: {
               color:
                 "#17263d",
@@ -846,14 +1000,18 @@ export default function EntryModel() {
               color:
                 "#17263d",
             },
+
           },
 
           rightPriceScale: {
+
             borderColor:
               "#294467",
+
           },
 
           timeScale: {
+
             borderColor:
               "#294467",
 
@@ -862,9 +1020,11 @@ export default function EntryModel() {
 
             secondsVisible:
               false,
+
           },
 
           crosshair: {
+
             vertLine: {
               color:
                 "#294467",
@@ -874,14 +1034,18 @@ export default function EntryModel() {
               color:
                 "#294467",
             },
+
           },
+
         }
       );
+
 
     const candleSeries =
       chart.addSeries(
         CandlestickSeries,
         {
+
           upColor:
             "#22c55e",
 
@@ -899,14 +1063,17 @@ export default function EntryModel() {
 
           wickDownColor:
             "#ef4444",
+
         }
       );
+
 
     const markerController =
       createSeriesMarkers(
         candleSeries,
         []
       );
+
 
     chartRef.current =
       chart;
@@ -923,6 +1090,7 @@ export default function EntryModel() {
     chartHasFittedRef.current =
       false;
 
+
     console.log(
       `[Entry Model] Chart created | ${selectedBot.symbol} | generation=${generation}`
     );
@@ -934,25 +1102,34 @@ export default function EntryModel() {
 
     const handleResize =
       () => {
+
         if (
           !chartMountedRef.current ||
           !chartContainerRef.current
         ) {
+
           return;
+
         }
 
+
         try {
+
           chart.applyOptions({
             width:
               chartContainerRef.current
                 .clientWidth,
           });
+
         } catch (error) {
+
           console.warn(
             "[Entry Model] Chart resize failed:",
             error
           );
+
         }
+
       };
 
 
@@ -967,9 +1144,11 @@ export default function EntryModel() {
        -------------------------------------------------------- */
 
     return () => {
+
       console.log(
         `[Entry Model] Destroying chart | generation=${generation}`
       );
+
 
       chartMountedRef.current =
         false;
@@ -977,19 +1156,26 @@ export default function EntryModel() {
       chartGenerationRef.current +=
         1;
 
+
       window.removeEventListener(
         "resize",
         handleResize
       );
 
+
       try {
+
         chart.remove();
+
       } catch (error) {
+
         console.warn(
           "[Entry Model] Chart cleanup failed:",
           error
         );
+
       }
+
 
       chartRef.current =
         null;
@@ -999,7 +1185,9 @@ export default function EntryModel() {
 
       markersRef.current =
         null;
+
     };
+
   }, [
     selectedBot?.symbol,
   ]);
@@ -1010,33 +1198,45 @@ export default function EntryModel() {
      ========================================================== */
 
   useEffect(() => {
+
     if (
       !chartMountedRef.current ||
       !candleSeriesRef.current
     ) {
+
       return;
+
     }
+
 
     if (
       !chartData.length
     ) {
+
       return;
+
     }
 
+
     try {
+
       candleSeriesRef.current.setData(
         chartData
       );
+
 
       console.log(
         `[Entry Model] Candles rendered | ${chartData.length}`
       );
 
+
     } catch (error) {
+
       console.error(
         "[Entry Model] Candle setData error:",
         error
       );
+
     }
 
   }, [
@@ -1045,37 +1245,49 @@ export default function EntryModel() {
 
 
   /* ==========================================================
-     FIT CHART AFTER FIRST DATA LOAD
+     FIT CHART
      ========================================================== */
 
   useEffect(() => {
+
     if (
       !chartMountedRef.current ||
       !chartRef.current ||
       !chartData.length
     ) {
+
       return;
+
     }
+
 
     if (
       chartHasFittedRef.current
     ) {
+
       return;
+
     }
 
+
     try {
+
       chartRef.current
         .timeScale()
         .fitContent();
 
+
       chartHasFittedRef.current =
         true;
 
+
     } catch (error) {
+
       console.warn(
         "[Entry Model] Chart fit failed:",
         error
       );
+
     }
 
   }, [
@@ -1084,65 +1296,91 @@ export default function EntryModel() {
 
 
   /* ==========================================================
-     ADD FINAL SIGNAL MARKERS
+     FINAL SIGNAL MARKERS
+
+     SERVER ONLY.
+
+     React does NOT calculate the signal.
+     It only displays server decisions.
      ========================================================== */
 
   useEffect(() => {
+
     if (
       !chartMountedRef.current ||
       !candleSeriesRef.current ||
       !markersRef.current ||
       !chartData.length
     ) {
+
       return;
+
     }
+
 
     const markers = [];
 
-    /* --------------------------------------------------------
-       BUILD MARKERS FROM COMPLETED CYCLES
-       -------------------------------------------------------- */
 
     for (
       const cycle of previousCycles
     ) {
-      const decision =
-        normalizeDirection(
-          cycle?.decision
-        );
 
-      /*
-       * NEUTRAL = NO MARKER
-       */
+      const decision =
+        String(
+          cycle?.decision || ""
+        ).toUpperCase();
+
 
       if (
         decision !== "LONG" &&
         decision !== "SHORT"
       ) {
+
         continue;
+
       }
 
+
+      const rawTime =
+        cycle?.timestamp;
+
+
+      if (
+        rawTime === null ||
+        rawTime === undefined
+      ) {
+
+        continue;
+
+      }
+
+
       const cycleTime =
-        normalizeTimestamp(
-          cycle?.timestamp
-        );
+        typeof rawTime === "number"
+          ? rawTime > 100000000000
+            ? Math.floor(
+                rawTime / 1000
+              )
+            : Math.floor(
+                rawTime
+              )
+          : Math.floor(
+              Date.parse(
+                rawTime
+              ) / 1000
+            );
+
 
       if (
         !Number.isFinite(
           cycleTime
         )
       ) {
-        console.warn(
-          "[Entry Model] Invalid cycle marker timestamp:",
-          cycle?.timestamp
-        );
 
         continue;
+
       }
 
-      /* ------------------------------------------------------
-         FIND CLOSEST CANDLE
-         ------------------------------------------------------ */
 
       let nearestCandle =
         chartData[0];
@@ -1153,28 +1391,36 @@ export default function EntryModel() {
             cycleTime
         );
 
+
       for (
         const candle of chartData
       ) {
+
         const distance =
           Math.abs(
             candle.time -
               cycleTime
           );
 
+
         if (
           distance <
           nearestDistance
         ) {
+
           nearestDistance =
             distance;
 
           nearestCandle =
             candle;
+
         }
+
       }
 
+
       markers.push({
+
         time:
           nearestCandle.time,
 
@@ -1193,27 +1439,32 @@ export default function EntryModel() {
 
         text:
           decision,
+
       });
+
     }
+
 
     markers.sort(
       (a, b) =>
-        a.time - b.time
+        a.time -
+        b.time
     );
 
-    /* --------------------------------------------------------
-       UPDATE EXISTING MARKER CONTROLLER
-       -------------------------------------------------------- */
 
     try {
+
       markersRef.current.setMarkers(
         markers
       );
+
     } catch (error) {
+
       console.warn(
         "[Entry Model] Marker update failed:",
         error
       );
+
     }
 
   }, [
@@ -1224,343 +1475,339 @@ export default function EntryModel() {
 
   /* ==========================================================
      SERVER ENTRY MODEL ENGINE
+
+     React tells the backend WHICH BOT.
+
+     React does NOT send:
+       - direction
+       - symbol
+       - calculations
+       - scans
+       - votes
+       - cycles
+
+     Backend owns all of it.
      ========================================================== */
 
   useEffect(() => {
+
     if (!selectedBot) {
+
       return;
+
     }
 
-    /*
-     * Every time the selected bot / direction /
-     * trigger changes, create a new connection
-     * generation.
-     *
-     * This prevents an older async request from
-     * overwriting newer bot state.
-     */
-    engineConnectionRef.current += 1;
+
+    engineConnectionRef.current +=
+      1;
+
 
     const connectionId =
       engineConnectionRef.current;
 
-    let cancelled = false;
+
+    let cancelled =
+      false;
+
 
     async function connectEngine() {
+
       try {
+
         console.log(
-          `[Entry Model] ENGINE CHECK | ${selectedBot.id} | Trigger=${triggerState}`
+          `[Entry Model] ENGINE CHECK | ${selectedBot.id}`
         );
+
 
         const status =
           await getEntryModelEngine(
             selectedBot.id
           );
 
+
         if (
           cancelled ||
           connectionId !==
             engineConnectionRef.current
         ) {
+
           return;
+
         }
 
-        /* ----------------------------------------------------
-           NOT ARMED
-           ---------------------------------------------------- */
 
-        if (!isArmed) {
-          console.log(
-            `[Entry Model] ENGINE UPDATE | ${selectedBot.id} | Trigger=${triggerState || "UNKNOWN"}`
-          );
+        /*
+         * The backend decides whether the bot
+         * is ARMED or not.
+         */
 
-          /*
-           * IMPORTANT:
-           * Do NOT simply return here.
-           *
-           * This update tells the server engine:
-           *
-           * ARMED -> NEUTRAL
-           *
-           * and the backend stops the timer.
-           */
+        if (
+          selectedBot.triggerState !==
+            "ARMED"
+        ) {
+
           if (
             status?.exists
           ) {
+
             await updateEntryModelEngine(
-              selectedBot.id,
-              selectedBot.symbol,
-              botDirection,
-              triggerState
+              selectedBot.id
             );
 
             console.log(
-              `[Entry Model] ENGINE STOPPED BY TRIGGER | ${selectedBot.id}`
+              `[Entry Model] ENGINE UPDATE | ${selectedBot.id}`
             );
+
           }
 
           return;
+
         }
 
-        /* ----------------------------------------------------
-           ARMED + ENGINE DOES NOT EXIST
-           ---------------------------------------------------- */
+
+        /*
+         * ENGINE DOES NOT EXIST
+         *
+         * Backend gets the complete bot data.
+         */
 
         if (
           !status?.exists
         ) {
+
           console.log(
             `[Entry Model] STARTING SERVER ENGINE | ${selectedBot.id}`
           );
 
+
           const started =
             await startEntryModelEngine(
-              selectedBot.id,
-              selectedBot.symbol,
-              botDirection,
-              triggerState
+              selectedBot.id
             );
+
 
           if (
             cancelled ||
             connectionId !==
               engineConnectionRef.current
           ) {
+
             return;
+
           }
+
 
           console.log(
             `[Entry Model] SERVER ENGINE STARTED | ${selectedBot.id} | Scan=${started?.status?.scanCount ?? 0}/10`
           );
 
+
           return;
+
         }
 
-        /* ----------------------------------------------------
-           ARMED + ENGINE EXISTS
-           ---------------------------------------------------- */
+
+        /*
+         * ENGINE ALREADY EXISTS
+         */
 
         console.log(
           `[Entry Model] ENGINE EXISTS | ${selectedBot.id} | Running=${status.running} | Cycle=${status.cycleNumber} | Scans=${status.scanCount}/10`
         );
 
+
         /*
-         * Update symbol / direction / trigger.
+         * Tell backend to refresh its bot information.
          *
-         * This does NOT reset cycleScans.
+         * No direction/symbol/calculation comes
+         * from React.
          */
-        const updated =
-          await updateEntryModelEngine(
-            selectedBot.id,
-            selectedBot.symbol,
-            botDirection,
-            triggerState
-          );
+
+        await updateEntryModelEngine(
+          selectedBot.id
+        );
+
 
         if (
           cancelled ||
           connectionId !==
             engineConnectionRef.current
         ) {
+
           return;
+
         }
 
+
         /*
-         * Existing engine is stopped but the bot
-         * is ARMED.
-         *
-         * Resume it.
+         * Backend engine exists but is stopped.
          */
+
         if (
-          !status.running
+          !status.running &&
+          selectedBot.triggerState ===
+            "ARMED"
         ) {
+
           console.log(
             `[Entry Model] STARTING STOPPED ENGINE | ${selectedBot.id}`
           );
 
+
           await startEntryModelEngine(
-            selectedBot.id,
-            selectedBot.symbol,
-            botDirection,
-            triggerState
+            selectedBot.id
           );
+
 
           console.log(
             `[Entry Model] SERVER ENGINE RESUMED | ${selectedBot.id}`
           );
+
         }
 
+
       } catch (err) {
+
         console.error(
           "[Entry Model] Engine connection error:",
           err
         );
+
 
         if (
           !cancelled &&
           connectionId ===
             engineConnectionRef.current
         ) {
+
           setError(
             err?.message ||
             "Failed to connect Entry Model engine."
           );
+
         }
+
       }
+
     }
+
 
     connectEngine();
 
+
     return () => {
-      cancelled = true;
+
+      cancelled =
+        true;
+
     };
+
   }, [
     selectedBotId,
-    isArmed,
-    botDirection,
-    triggerState,
   ]);
 
 
   /* ==========================================================
      LOAD SERVER ENGINE STATE
+
+     NO CALCULATIONS.
+
+     The server response is stored exactly as received.
      ========================================================== */
 
   useEffect(() => {
+
     if (!selectedBot) {
-      setCurrentScans([]);
-      setScanCount(0);
-      setPreviousCycles([]);
+
+      setEngineState(
+        null
+      );
 
       return;
+
     }
 
-    let cancelled = false;
+
+    let cancelled =
+      false;
+
 
     async function loadEngineState() {
+
       try {
+
         const status =
           await getEntryModelEngine(
             selectedBot.id
           );
 
-        if (cancelled) {
+
+        if (
+          cancelled
+        ) {
+
           return;
+
         }
 
-const scans =
-  Array.isArray(
-    status?.currentScans
-  )
-    ? status.currentScans.map(
-        (scan) => ({
-          ...scan,
 
-          timestamp:
-            scan?.timestamp ||
-            scan?.scannedAt ||
-            null,
-        })
-      )
-    : [];
+        /*
+         * SERVER IS THE SOURCE OF TRUTH.
+         *
+         * Do not transform scans.
+         * Do not transform cycles.
+         * Do not calculate votes.
+         * Do not calculate scan count.
+         */
 
-const cycles =
-  Array.isArray(
-    status?.previousCycles
-  )
-    ? status.previousCycles.map(
-        (cycle, index) => ({
-          ...cycle,
+        setEngineState(
+          status
+        );
 
-          id:
-            cycle?.id ||
-            `${cycle?.botId || selectedBot.id}-${cycle?.cycleNumber || index}`,
 
-          timestamp:
-            cycle?.timestamp ||
-            cycle?.completedAt ||
-            null,
+        console.log(
+          "[Entry Model] SERVER STATE:",
+          status
+        );
 
-          votes:
-            Number(
-              cycle?.votes ??
-              cycle?.botDirectionVotes ??
-              0
-            ),
-        })
-      )
-    : [];
-
-console.log(
-  "[Entry Model] SERVER STATE:",
-  {
-    botId:
-      selectedBot.id,
-
-    exists:
-      status?.exists,
-
-    running:
-      status?.running,
-
-    cycleNumber:
-      status?.cycleNumber,
-
-    scanCount:
-      status?.scanCount,
-
-    currentScans:
-      scans.length,
-
-    previousCycles:
-      cycles.length,
-  }
-);
-
-setCurrentScans(
-  scans
-);
-
-setScanCount(
-  Number(
-    status?.scanCount || 0
-  )
-);
-
-setPreviousCycles(
-  cycles
-);
 
       } catch (err) {
+
         console.error(
           "[Entry Model] Engine status error:",
           err
         );
+
       }
+
     }
 
-    /*
-     * Load immediately.
-     */
+
     loadEngineState();
 
+
     /*
-     * Keep React synchronized with
-     * the server every 3 seconds.
+     * React only synchronizes the screen.
      */
+
     const timer =
       setInterval(
         loadEngineState,
         3000
       );
 
+
     return () => {
-      cancelled = true;
+
+      cancelled =
+        true;
 
       clearInterval(
         timer
       );
+
     };
+
   }, [
     selectedBotId,
   ]);
@@ -1572,37 +1819,30 @@ setPreviousCycles(
 
   const handleBotChange =
     (event) => {
+
       const value =
         event.target.value;
+
 
       setSelectedBotId(
         value
       );
 
+
       /*
-       * Clear the screen temporarily.
+       * Clear display only.
        *
-       * IMPORTANT:
-       * This does NOT reset the server engine.
-       *
-       * The server state will be loaded
-       * immediately after the bot changes.
+       * This DOES NOT reset the backend engine.
        */
-      setCurrentScans(
-        []
-      );
 
-      setScanCount(
-        0
-      );
-
-      setPreviousCycles(
-        []
+      setEngineState(
+        null
       );
 
       setError("");
 
       setSuccess("");
+
     };
 
 
@@ -1612,6 +1852,7 @@ setPreviousCycles(
 
   return (
     <div className="entry-model-page">
+
 
       {/* ======================================================
           HEADER
@@ -1625,9 +1866,12 @@ setPreviousCycles(
             Entry Model
           </h1>
 
+
           {selectedBot && (
             <div className="entry-model-symbol">
+
               {selectedBot.symbol}
+
             </div>
           )}
 
@@ -1639,6 +1883,7 @@ setPreviousCycles(
           <label>
             BOT
           </label>
+
 
           <select
             value={
@@ -1656,8 +1901,10 @@ setPreviousCycles(
               Select Bot
             </option>
 
+
             {bots.map(
               (bot) => (
+
                 <option
                   key={
                     bot.id
@@ -1666,16 +1913,21 @@ setPreviousCycles(
                     bot.id
                   }
                 >
+
                   {bot.name ||
                     bot.id ||
                     bot.symbol}
+
                   {" | "}
+
                   {bot.symbol}
+
                   {" | "}
-                  {normalizeDirection(
-                    bot.direction
-                  )}
+
+                  {bot.direction}
+
                 </option>
+
               )
             )}
 
@@ -1692,7 +1944,9 @@ setPreviousCycles(
 
       {error && (
         <div className="entry-model-error">
+
           {error}
+
         </div>
       )}
 
@@ -1703,7 +1957,9 @@ setPreviousCycles(
 
       {success && (
         <div className="entry-model-success">
+
           {success}
+
         </div>
       )}
 
@@ -1720,9 +1976,12 @@ setPreviousCycles(
             Bot:
           </span>
 
+
           <span className="entry-model-status-value">
+
             {selectedBot?.symbol ||
               "NONE"}
+
           </span>
 
 
@@ -1730,16 +1989,19 @@ setPreviousCycles(
             Direction:
           </span>
 
+
           <span className="entry-model-status-value">
-            {selectedBot
-              ? botDirection
-              : "NONE"}
+
+            {selectedBot?.direction ||
+              "NONE"}
+
           </span>
 
 
           <span className="entry-model-status-label">
             Trigger:
           </span>
+
 
           <span
             className={`entry-model-status-value ${
@@ -1748,9 +2010,25 @@ setPreviousCycles(
                 : "neutral"
             }`}
           >
+
             {selectedBot
               ? triggerState
               : "NONE"}
+
+          </span>
+
+
+          <span className="entry-model-status-label">
+            Engine:
+          </span>
+
+
+          <span className="entry-model-status-value">
+
+            {running
+              ? "RUNNING"
+              : "STOPPED"}
+
           </span>
 
         </div>
@@ -1770,8 +2048,11 @@ setPreviousCycles(
             Current Cycle
           </span>
 
+
           <span className="entry-model-scan-count">
+
             {scanCount} / 10
+
           </span>
 
         </div>
@@ -1779,9 +2060,11 @@ setPreviousCycles(
 
         <div className="entry-model-scan-message">
 
-          {isArmed
+          {running
             ? "Orderbook scan running every 1 minute"
-            : "Waiting for bot to become ARMED"}
+            : isArmed
+              ? "Entry Model engine stopped"
+              : "Waiting for bot to become ARMED"}
 
         </div>
 
@@ -1821,11 +2104,6 @@ setPreviousCycles(
         </div>
 
 
-        {/* ----------------------------------------------------
-           IMPORTANT:
-           CHART CONTAINER ALWAYS EXISTS.
-           ---------------------------------------------------- */}
-
         <div
           ref={
             chartContainerRef
@@ -1833,11 +2111,16 @@ setPreviousCycles(
           className="entry-model-chart"
         />
 
+
         {!chartData.length &&
           !loadingChart && (
+
             <div className="entry-model-chart-empty">
+
               No chart data available
+
             </div>
+
           )}
 
       </div>
@@ -1845,6 +2128,8 @@ setPreviousCycles(
 
       {/* ======================================================
           CURRENT CYCLE
+
+          EVERYTHING BELOW IS SERVER DATA.
           ====================================================== */}
 
       <div className="entry-model-table-card">
@@ -1855,8 +2140,11 @@ setPreviousCycles(
             CURRENT CYCLE
           </h2>
 
+
           <span className="entry-model-cycle-count">
+
             {scanCount} / 10
+
           </span>
 
         </div>
@@ -1913,10 +2201,14 @@ setPreviousCycles(
                     colSpan="7"
                     className="entry-model-empty"
                   >
+
                     No scans yet.
+
                     <br />
+
                     Waiting for the next
                     orderbook scan.
+
                   </td>
 
                 </tr>
@@ -1927,191 +2219,217 @@ setPreviousCycles(
                   (
                     scan,
                     index
-                  ) => {
+                  ) => (
 
-                    const depth15 =
-                      scan?.depths?.find(
-                        (item) =>
-                          Number(
-                            item.depth
-                          ) ===
-                          15
-                      );
+                    <tr
+                      key={
+                        scan?.id ||
+                        scan?.timestamp ||
+                        index
+                      }
+                    >
 
-                    const depth20 =
-                      scan?.depths?.find(
-                        (item) =>
-                          Number(
-                            item.depth
-                          ) ===
-                          20
-                      );
+                      <td>
 
-                    const depth30 =
-                      scan?.depths?.find(
-                        (item) =>
-                          Number(
-                            item.depth
-                          ) ===
-                          30
-                      );
+                        {scan?.timestamp
+                          ? new Date(
+                              scan.timestamp
+                            ).toLocaleTimeString()
+                          : "--:--:--"}
 
-                    const depth60 =
-                      scan?.depths?.find(
-                        (item) =>
-                          Number(
-                            item.depth
-                          ) ===
-                          60
-                      );
+                      </td>
 
-                    const time =
-                      scan?.timestamp
-                        ? new Date(
-                            scan.timestamp
-                          ).toLocaleTimeString()
-                        : "--:--:--";
 
-                    return (
-                      <tr
-                        key={
-                          scan?.timestamp ||
-                          index
-                        }
-                      >
+                      <td>
 
-                        <td>
-                          {time}
-                        </td>
+                        {scan?.symbol ||
+                          selectedBot?.symbol ||
+                          "-"}
 
-                        <td>
-                          {scan?.symbol ||
-                            selectedBot?.symbol ||
-                            "-"}
-                        </td>
+                      </td>
 
-                        <td>
-                          <span
-                            className={`entry-model-direction ${
-                              String(
-                                depth15?.direction ||
-                                "NEUTRAL"
-                              ).toLowerCase()
-                            }`}
-                          >
-                            {normalizeDirection(
-                              depth15?.direction
-                            )}
 
-                            {formatPercentage(
-                              depth15?.percentage
-                            ) && (
-                              <>
-                                {" "}
-                                {formatPercentage(
-                                  depth15?.percentage
-                                )}
-                              </>
-                            )}
-                          </span>
-                        </td>
+                      {/* ----------------------------------------
+                           TREND 15 + BACKEND PERCENTAGE
+                           ---------------------------------------- */}
 
-                        <td>
-                          <span
-                            className={`entry-model-direction ${
-                              String(
-                                depth20?.direction ||
-                                "NEUTRAL"
-                              ).toLowerCase()
-                            }`}
-                          >
-                            {normalizeDirection(
-                              depth20?.direction
-                            )}
+                      <td>
 
-                            {formatPercentage(
-                              depth20?.percentage
-                            ) && (
-                              <>
-                                {" "}
-                                {formatPercentage(
-                                  depth20?.percentage
-                                )}
-                              </>
-                            )}
-                          </span>
-                        </td>
+                        <span
+                          className={`entry-model-direction ${
+                            String(
+                              scan?.trend15 ||
+                              "NEUTRAL"
+                            ).toLowerCase()
+                          }`}
+                        >
 
-                        <td>
-                          <span
-                            className={`entry-model-direction ${
-                              String(
-                                depth30?.direction ||
-                                "NEUTRAL"
-                              ).toLowerCase()
-                            }`}
-                          >
-                            {normalizeDirection(
-                              depth30?.direction
-                            )}
+                          {scan?.trend15 ||
+                            "NEUTRAL"}
 
-                            {formatPercentage(
-                              depth30?.percentage
-                            ) && (
-                              <>
-                                {" "}
-                                {formatPercentage(
-                                  depth30?.percentage
-                                )}
-                              </>
-                            )}
-                          </span>
-                        </td>
+                        </span>
 
-                        <td>
-                          <span
-                            className={`entry-model-direction ${
-                              String(
-                                depth60?.direction ||
-                                "NEUTRAL"
-                              ).toLowerCase()
-                            }`}
-                          >
-                            {normalizeDirection(
-                              depth60?.direction
-                            )}
+                        {scan?.percentage15 !== null &&
+                          scan?.percentage15 !== undefined && (
 
-                            {formatPercentage(
-                              depth60?.percentage
-                            ) && (
-                              <>
-                                {" "}
-                                {formatPercentage(
-                                  depth60?.percentage
-                                )}
-                              </>
-                            )}
-                          </span>
-                        </td>
+                            <small
+                              style={{
+                                marginLeft: "5px",
+                                opacity: 0.7,
+                                fontSize: "11px",
+                              }}
+                            >
 
-                        <td>
-                          <span
-                            className={`entry-model-decision ${
-                              String(
-                                scan?.decision ||
-                                "NEUTRAL"
-                              ).toLowerCase()
-                            }`}
-                          >
-                            {normalizeDirection(
-                              scan?.decision
-                            )}
-                          </span>
-                        </td>
+                              {scan.percentage15}%
 
-                      </tr>
-                    );
-                  }
+                            </small>
+
+                          )}
+
+                      </td>
+
+
+                      {/* ----------------------------------------
+                           TREND 20 + BACKEND PERCENTAGE
+                           ---------------------------------------- */}
+
+                      <td>
+
+                        <span
+                          className={`entry-model-direction ${
+                            String(
+                              scan?.trend20 ||
+                              "NEUTRAL"
+                            ).toLowerCase()
+                          }`}
+                        >
+
+                          {scan?.trend20 ||
+                            "NEUTRAL"}
+
+                        </span>
+
+                        {scan?.percentage20 !== null &&
+                          scan?.percentage20 !== undefined && (
+
+                            <small
+                              style={{
+                                marginLeft: "5px",
+                                opacity: 0.7,
+                                fontSize: "11px",
+                              }}
+                            >
+
+                              {scan.percentage20}%
+
+                            </small>
+
+                          )}
+
+                      </td>
+
+
+                      {/* ----------------------------------------
+                           TREND 30 + BACKEND PERCENTAGE
+                           ---------------------------------------- */}
+
+                      <td>
+
+                        <span
+                          className={`entry-model-direction ${
+                            String(
+                              scan?.trend30 ||
+                              "NEUTRAL"
+                            ).toLowerCase()
+                          }`}
+                        >
+
+                          {scan?.trend30 ||
+                            "NEUTRAL"}
+
+                        </span>
+
+                        {scan?.percentage30 !== null &&
+                          scan?.percentage30 !== undefined && (
+
+                            <small
+                              style={{
+                                marginLeft: "5px",
+                                opacity: 0.7,
+                                fontSize: "11px",
+                              }}
+                            >
+
+                              {scan.percentage30}%
+
+                            </small>
+
+                          )}
+
+                      </td>
+
+
+                      {/* ----------------------------------------
+                           TREND 60 + BACKEND PERCENTAGE
+                           ---------------------------------------- */}
+
+                      <td>
+
+                        <span
+                          className={`entry-model-direction ${
+                            String(
+                              scan?.trend60 ||
+                              "NEUTRAL"
+                            ).toLowerCase()
+                          }`}
+                        >
+
+                          {scan?.trend60 ||
+                            "NEUTRAL"}
+
+                        </span>
+
+                        {scan?.percentage60 !== null &&
+                          scan?.percentage60 !== undefined && (
+
+                            <small
+                              style={{
+                                marginLeft: "5px",
+                                opacity: 0.7,
+                                fontSize: "11px",
+                              }}
+                            >
+
+                              {scan.percentage60}%
+
+                            </small>
+
+                          )}
+
+                      </td>
+
+
+                      <td>
+
+                        <span
+                          className={`entry-model-decision ${
+                            String(
+                              scan?.decision ||
+                              "NEUTRAL"
+                            ).toLowerCase()
+                          }`}
+                        >
+
+                          {scan?.decision ||
+                            "NEUTRAL"}
+
+                        </span>
+
+                      </td>
+
+                    </tr>
+
+                  )
                 )
 
               )}
@@ -2127,6 +2445,8 @@ setPreviousCycles(
 
       {/* ======================================================
           PREVIOUS CYCLES
+
+          EVERYTHING BELOW IS SERVER DATA.
           ====================================================== */}
 
       <div className="entry-model-table-card">
@@ -2137,8 +2457,11 @@ setPreviousCycles(
             PREVIOUS CYCLES
           </h2>
 
+
           <span className="entry-model-cycle-count">
+
             {previousCycles.length} completed
+
           </span>
 
         </div>
@@ -2207,10 +2530,14 @@ setPreviousCycles(
                     colSpan="10"
                     className="entry-model-empty"
                   >
+
                     No completed cycles yet.
+
                     <br />
+
                     The current cycle will move
                     here after 10 scans.
+
                   </td>
 
                 </tr>
@@ -2219,131 +2546,181 @@ setPreviousCycles(
 
                 previousCycles.map(
                   (
-                    cycle
+                    cycle,
+                    index
                   ) => (
+
                     <tr
                       key={
-                        cycle.id
+                        cycle?.id ||
+                        cycle?.timestamp ||
+                        index
                       }
                     >
 
                       <td>
-                        {new Date(
-                          cycle.timestamp
-                        ).toLocaleTimeString()}
+
+                        {cycle?.timestamp
+                          ? new Date(
+                              cycle.timestamp
+                            ).toLocaleTimeString()
+                          : "--:--:--"}
+
                       </td>
 
-                      <td>
-                        {cycle.symbol}
-                      </td>
 
                       <td>
+
+                        {cycle?.symbol ||
+                          "-"}
+
+                      </td>
+
+
+                      <td>
+
                         <span
                           className={`entry-model-direction ${
                             String(
-                              cycle.botDirection
+                              cycle?.botDirection ||
+                              "NEUTRAL"
                             ).toLowerCase()
                           }`}
                         >
-                          {
-                            cycle.botDirection
-                          }
+
+                          {cycle?.botDirection ||
+                            "NEUTRAL"}
+
                         </span>
+
                       </td>
 
+
                       <td>
+
                         <span
                           className={`entry-model-direction ${
                             String(
-                              cycle.trend15
+                              cycle?.trend15 ||
+                              "NEUTRAL"
                             ).toLowerCase()
                           }`}
                         >
-                          {
-                            cycle.trend15
-                          }
+
+                          {cycle?.trend15 ||
+                            "NEUTRAL"}
+
                         </span>
+
                       </td>
 
+
                       <td>
+
                         <span
                           className={`entry-model-direction ${
                             String(
-                              cycle.trend20
+                              cycle?.trend20 ||
+                              "NEUTRAL"
                             ).toLowerCase()
                           }`}
                         >
-                          {
-                            cycle.trend20
-                          }
+
+                          {cycle?.trend20 ||
+                            "NEUTRAL"}
+
                         </span>
+
                       </td>
 
+
                       <td>
+
                         <span
                           className={`entry-model-direction ${
                             String(
-                              cycle.trend30
+                              cycle?.trend30 ||
+                              "NEUTRAL"
                             ).toLowerCase()
                           }`}
                         >
-                          {
-                            cycle.trend30
-                          }
+
+                          {cycle?.trend30 ||
+                            "NEUTRAL"}
+
                         </span>
+
                       </td>
 
+
                       <td>
+
                         <span
                           className={`entry-model-direction ${
                             String(
-                              cycle.trend60
+                              cycle?.trend60 ||
+                              "NEUTRAL"
                             ).toLowerCase()
                           }`}
                         >
-                          {
-                            cycle.trend60
-                          }
+
+                          {cycle?.trend60 ||
+                            "NEUTRAL"}
+
                         </span>
+
                       </td>
 
+
                       <td>
+
                         <span
                           className={`entry-model-votes ${
-                            cycle.votes >=
-                            6
+                            Number(
+                              cycle?.votes || 0
+                            ) >= 6
                               ? "good"
                               : "bad"
                           }`}
                         >
-                          {
-                            cycle.votes
-                          }{" "}
-                          / 10
+
+                          {cycle?.votes ?? 0}
+
+                          {" / 10"}
+
                         </span>
+
                       </td>
 
-                      <td>
-                        {
-                          cycle.totalScans
-                        }
-                      </td>
 
                       <td>
+
+                        {cycle?.totalScans ??
+                          0}
+
+                      </td>
+
+
+                      <td>
+
                         <span
                           className={`entry-model-decision ${
                             String(
-                              cycle.decision
+                              cycle?.decision ||
+                              "NEUTRAL"
                             ).toLowerCase()
                           }`}
                         >
-                          {
-                            cycle.decision
-                          }
+
+                          {cycle?.decision ||
+                            "NEUTRAL"}
+
                         </span>
+
                       </td>
 
                     </tr>
+
                   )
                 )
 
@@ -2360,3 +2737,4 @@ setPreviousCycles(
     </div>
   );
 }
+

@@ -1592,6 +1592,25 @@ module.exports = function createBotsRouter({
   });
 
   // ==========================================================
+  // INTERNAL BOT ACCESS
+  //
+  // Entry Model backend can retrieve the REAL bot.
+  //
+  // React never supplies symbol/direction/trigger state.
+  // ==========================================================
+
+  router.getBot = (
+    botId
+  ) => {
+
+    return bots.find(
+      (bot) =>
+        bot.id === botId
+    ) || null;
+
+  };
+
+  // ==========================================================
   // RETURN ROUTER
   // ==========================================================
 
