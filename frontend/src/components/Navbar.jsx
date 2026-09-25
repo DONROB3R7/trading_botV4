@@ -64,7 +64,7 @@ function Navbar() {
             Bot Management
           </NavLink>
 
-                    <NavLink
+          <NavLink
             to="/chart-bot"
             className={({ isActive }) =>
               `nav-link ${
@@ -76,6 +76,24 @@ function Navbar() {
           >
             <span>📈</span>
             Chart Bot
+          </NavLink>
+
+          {/* ==================================================
+              ENTRY MODEL
+              ================================================== */}
+
+          <NavLink
+            to="/entry-model"
+            className={({ isActive }) =>
+              `nav-link ${
+                isActive
+                  ? "active"
+                  : ""
+              }`
+            }
+          >
+            <span>🎯</span>
+            Entry Model
           </NavLink>
 
           <NavLink
@@ -91,9 +109,6 @@ function Navbar() {
             <span>🧪</span>
             Trade Test
           </NavLink>
-
-
-
 
         </nav>
 

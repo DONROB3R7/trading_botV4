@@ -1,7 +1,4 @@
-
-
-const API_BASE_URL =
-  "http://localhost:3001";
+const API_BASE_URL = "http://localhost:3001";
 
 // ============================================================
 // HEALTH
@@ -19,7 +16,228 @@ export async function getHealth() {
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Health request failed"
+      "Health request failed"
+    );
+  }
+
+  return data;
+}
+
+// ============================================================
+// BOTS
+// ============================================================
+
+export async function getBots() {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/bots`
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "Bots request failed"
+    );
+  }
+
+  return data;
+}
+
+// ============================================================
+// ENTRY MODEL
+// ============================================================
+
+export async function scanEntryModel(
+  symbol,
+  botDirection,
+  triggerState
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/entry-models/orderbook/scan`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          symbol,
+          botDirection,
+          triggerState,
+        }),
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "Entry Model scan failed"
+    );
+  }
+
+  return data;
+}
+
+// ============================================================
+// ENTRY MODEL ENGINE
+// ============================================================
+
+export async function startEntryModelEngine(
+  botId,
+  symbol,
+  botDirection,
+  triggerState
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/entry-models/engine/start`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          botId,
+          symbol,
+          botDirection,
+          triggerState,
+        }),
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "Start Entry Model engine failed"
+    );
+  }
+
+  return data;
+}
+
+export async function updateEntryModelEngine(
+  botId,
+  symbol,
+  botDirection,
+  triggerState
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/entry-models/engine/update`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          botId,
+          symbol,
+          botDirection,
+          triggerState,
+        }),
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "Update Entry Model engine failed"
+    );
+  }
+
+  return data;
+}
+
+export async function stopEntryModelEngine(
+  botId
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/entry-models/engine/stop`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          botId,
+        }),
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "Stop Entry Model engine failed"
+    );
+  }
+
+  return data;
+}
+
+export async function getEntryModelEngine(
+  botId
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/entry-models/engine/${encodeURIComponent(
+        botId
+      )}`
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "Get Entry Model engine failed"
+    );
+  }
+
+  return data;
+}
+
+export async function getEntryModelEngines() {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/entry-models/engines`
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "Get Entry Model engines failed"
     );
   }
 
@@ -42,7 +260,7 @@ export async function getAccount() {
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Account request failed"
+      "Account request failed"
     );
   }
 
@@ -65,7 +283,7 @@ export async function getAccountConfig() {
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Account config request failed"
+      "Account config request failed"
     );
   }
 
@@ -88,152 +306,7 @@ export async function getPositions() {
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Positions request failed"
-    );
-  }
-
-  return data;
-}
-
-// ============================================================
-// POLUSDT INFO
-// ============================================================
-
-export async function getPolusdt() {
-  const response =
-    await fetch(
-      `${API_BASE_URL}/api/test/polusdt`
-    );
-
-  const data =
-    await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data.error ||
-        "POLUSDT request failed"
-    );
-  }
-
-  return data;
-}
-
-// ============================================================
-// POLUSDT LONG
-// ============================================================
-
-export async function openPolusdtLong() {
-  const response =
-    await fetch(
-      `${API_BASE_URL}/api/test/polusdt/long`,
-      {
-        method:
-          "POST",
-      }
-    );
-
-  const data =
-    await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data.error ||
-        "POLUSDT LONG failed"
-    );
-  }
-
-  return data;
-}
-
-// ============================================================
-// POLUSDT SHORT
-// ============================================================
-
-export async function openPolusdtShort() {
-  const response =
-    await fetch(
-      `${API_BASE_URL}/api/test/polusdt/short`,
-      {
-        method:
-          "POST",
-      }
-    );
-
-  const data =
-    await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data.error ||
-        "POLUSDT SHORT failed"
-    );
-  }
-
-  return data;
-}
-
-// ============================================================
-// POLUSDT CLOSE
-// ============================================================
-
-export async function closePolusdt() {
-  const response =
-    await fetch(
-      `${API_BASE_URL}/api/test/polusdt/close`,
-      {
-        method:
-          "POST",
-      }
-    );
-
-  const data =
-    await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data.error ||
-        "POLUSDT CLOSE failed"
-    );
-  }
-
-  return data;
-}
-
-// ============================================================
-// POLUSDT TP / SL
-// ============================================================
-
-export async function updatePolusdtTpSl(
-  stopLoss,
-  takeProfit
-) {
-  const response =
-    await fetch(
-      `${API_BASE_URL}/api/test/polusdt/tpsl`,
-      {
-        method:
-          "POST",
-
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-
-        body:
-          JSON.stringify({
-            stopLoss,
-            takeProfit,
-          }),
-      }
-    );
-
-  const data =
-    await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data.error ||
-        "POLUSDT TP/SL failed"
+      "Positions request failed"
     );
   }
 
@@ -256,7 +329,7 @@ export async function getTradingSymbols() {
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Trading symbols request failed"
+      "Trading symbols request failed"
     );
   }
 
@@ -268,18 +341,16 @@ export async function getTradingSymbols() {
 // ============================================================
 
 export async function getChart(
-  symbol
+  symbol,
+  interval = "1m"
 ) {
-  const normalizedSymbol =
-    String(
-      symbol
-    )
-      .toUpperCase()
-      .trim();
-
   const response =
     await fetch(
-      `${API_BASE_URL}/api/chart/${normalizedSymbol}`
+      `${API_BASE_URL}/api/chart/${encodeURIComponent(
+        symbol
+      )}?interval=${encodeURIComponent(
+        interval
+      )}`
     );
 
   const data =
@@ -288,7 +359,7 @@ export async function getChart(
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Chart request failed"
+      "Chart request failed"
     );
   }
 
@@ -296,30 +367,7 @@ export async function getChart(
 }
 
 // ============================================================
-// GET BOTS
-// ============================================================
-
-export async function getBots() {
-  const response =
-    await fetch(
-      `${API_BASE_URL}/api/bots`
-    );
-
-  const data =
-    await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data.error ||
-        "Bots request failed"
-    );
-  }
-
-  return data;
-}
-
-// ============================================================
-// CREATE BOT
+// BOT CREATE
 // ============================================================
 
 export async function createBot(
@@ -329,18 +377,16 @@ export async function createBot(
     await fetch(
       `${API_BASE_URL}/api/bots`,
       {
-        method:
-          "POST",
+        method: "POST",
 
         headers: {
           "Content-Type":
             "application/json",
         },
 
-        body:
-          JSON.stringify(
-            bot
-          ),
+        body: JSON.stringify(
+          bot
+        ),
       }
     );
 
@@ -350,7 +396,7 @@ export async function createBot(
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Create bot failed"
+      "Create bot failed"
     );
   }
 
@@ -358,7 +404,7 @@ export async function createBot(
 }
 
 // ============================================================
-// ENTER BOT POSITION
+// BOT ENTER
 // ============================================================
 
 export async function enterBot(
@@ -366,10 +412,11 @@ export async function enterBot(
 ) {
   const response =
     await fetch(
-      `${API_BASE_URL}/api/bots/${botId}/enter`,
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(
+        botId
+      )}/enter`,
       {
-        method:
-          "POST",
+        method: "POST",
       }
     );
 
@@ -379,7 +426,7 @@ export async function enterBot(
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Bot entry failed"
+      "Enter bot failed"
     );
   }
 
@@ -387,7 +434,7 @@ export async function enterBot(
 }
 
 // ============================================================
-// CLOSE BOT POSITION
+// BOT CLOSE
 // ============================================================
 
 export async function closeBot(
@@ -395,10 +442,11 @@ export async function closeBot(
 ) {
   const response =
     await fetch(
-      `${API_BASE_URL}/api/bots/${botId}/close`,
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(
+        botId
+      )}/close`,
       {
-        method:
-          "POST",
+        method: "POST",
       }
     );
 
@@ -408,7 +456,7 @@ export async function closeBot(
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Bot close failed"
+      "Close bot failed"
     );
   }
 
@@ -416,7 +464,7 @@ export async function closeBot(
 }
 
 // ============================================================
-// PAUSE BOT
+// BOT PAUSE
 // ============================================================
 
 export async function pauseBot(
@@ -424,10 +472,11 @@ export async function pauseBot(
 ) {
   const response =
     await fetch(
-      `${API_BASE_URL}/api/bots/${botId}/pause`,
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(
+        botId
+      )}/pause`,
       {
-        method:
-          "POST",
+        method: "POST",
       }
     );
 
@@ -437,7 +486,7 @@ export async function pauseBot(
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Pause bot failed"
+      "Pause bot failed"
     );
   }
 
@@ -445,7 +494,7 @@ export async function pauseBot(
 }
 
 // ============================================================
-// RESUME BOT
+// BOT RESUME
 // ============================================================
 
 export async function resumeBot(
@@ -453,10 +502,11 @@ export async function resumeBot(
 ) {
   const response =
     await fetch(
-      `${API_BASE_URL}/api/bots/${botId}/resume`,
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(
+        botId
+      )}/resume`,
       {
-        method:
-          "POST",
+        method: "POST",
       }
     );
 
@@ -466,7 +516,7 @@ export async function resumeBot(
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Resume bot failed"
+      "Resume bot failed"
     );
   }
 
@@ -474,7 +524,7 @@ export async function resumeBot(
 }
 
 // ============================================================
-// DELETE BOT
+// BOT DELETE
 // ============================================================
 
 export async function deleteBot(
@@ -482,10 +532,11 @@ export async function deleteBot(
 ) {
   const response =
     await fetch(
-      `${API_BASE_URL}/api/bots/${botId}`,
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(
+        botId
+      )}`,
       {
-        method:
-          "DELETE",
+        method: "DELETE",
       }
     );
 
@@ -495,9 +546,160 @@ export async function deleteBot(
   if (!response.ok) {
     throw new Error(
       data.error ||
-        "Delete bot failed"
+      "Delete bot failed"
     );
   }
 
   return data;
 }
+
+// ============================================================
+// TEST POLUSDT
+// ============================================================
+
+export async function testPolusdt() {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/test/polusdt`
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "POLUSDT test failed"
+    );
+  }
+
+  return data;
+}
+
+export async function testPolusdtLong() {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/test/polusdt/long`,
+      {
+        method: "POST",
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "POLUSDT LONG test failed"
+    );
+  }
+
+  return data;
+}
+
+export async function testPolusdtShort() {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/test/polusdt/short`,
+      {
+        method: "POST",
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "POLUSDT SHORT test failed"
+    );
+  }
+
+  return data;
+}
+
+export async function testPolusdtClose() {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/test/polusdt/close`,
+      {
+        method: "POST",
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "POLUSDT CLOSE test failed"
+    );
+  }
+
+  return data;
+}
+
+export async function testPolusdtTpSl(
+  stopLoss,
+  takeProfit
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/test/polusdt/tpsl`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          stopLoss,
+          takeProfit,
+        }),
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      "POLUSDT TP/SL test failed"
+    );
+  }
+
+  return data;
+}
+
+// ============================================================
+// POLUSDT TRADE ALIASES
+// ============================================================
+
+export async function openPolusdtLong() {
+  return testPolusdtLong();
+}
+
+export async function openPolusdtShort() {
+  return testPolusdtShort();
+}
+
+export async function closePolusdt() {
+  return testPolusdtClose();
+}
+
+export async function updatePolusdtTpSl(
+  stopLoss,
+  takeProfit
+) {
+  return testPolusdtTpSl(
+    stopLoss,
+    takeProfit
+  );
+}
+

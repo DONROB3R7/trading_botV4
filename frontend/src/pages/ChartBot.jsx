@@ -55,6 +55,10 @@ function formatBerlinTime(
 }
 
 function ChartBot() {
+  // ============================================================
+  // CHART REFS
+  // ============================================================
+
   const chartContainerRef =
     useRef(null);
 
@@ -65,6 +69,23 @@ function ChartBot() {
     useRef(null);
 
   const markersRef =
+    useRef(null);
+
+  // ============================================================
+  // CHART LIFECYCLE SAFETY
+  // ============================================================
+
+  const chartMountedRef =
+    useRef(false);
+
+  const chartGenerationRef =
+    useRef(0);
+
+  // ============================================================
+  // TRIGGER LINE REF
+  // ============================================================
+
+  const triggerLineRef =
     useRef(null);
 
   const entryMarkersRef =
@@ -78,6 +99,10 @@ function ChartBot() {
 
   const selectedBotRef =
     useRef(null);
+
+  // ============================================================
+  // BOT STATE
+  // ============================================================
 
   const [
     bots,
@@ -114,6 +139,10 @@ function ChartBot() {
     setMessage,
   ] = useState("");
 
+  // ============================================================
+  // SELECTED BOT
+  // ============================================================
+
   const selectedBot =
     bots.find(
       (bot) =>
@@ -123,6 +152,172 @@ function ChartBot() {
 
   selectedBotRef.current =
     selectedBot;
+
+  // ============================================================
+  // PYRAMID STATE
+  // ============================================================
+
+  const pyramidMax =
+    Number(
+      selectedBot?.pyramidPositions ??
+      selectedBot?.maxPositions ??
+      1
+    );
+
+  const pyramidCurrent =
+    Number(
+      selectedBot?.currentPositionCount ??
+      0
+    );
+
+  const pyramidReachedMax =
+    pyramidCurrent >=
+    pyramidMax;
+
+  // ============================================================
+  // TRIGGER LINE STATE
+  // ============================================================
+
+  const triggerLineEnabled =
+    selectedBot?.triggerLineEnabled ===
+    true;
+
+  const triggerLinePrice =
+    Number(
+      selectedBot?.triggerLinePrice
+    );
+
+  const triggerState =
+    selectedBot?.triggerState ||
+    (triggerLineEnabled
+      ? "NEUTRAL"
+      : "ARMED");
+
+  const botIsNeutral =
+    triggerLineEnabled &&
+    triggerState ===
+      "NEUTRAL";
+
+  const enterBlocked =
+    !selectedBot ||
+    actionLoading ||
+    selectedBot.status !==
+      "ACTIVE" ||
+    botIsNeutral ||
+    pyramidReachedMax;
+
+  // ============================================================
+  // CLEAR TRIGGER LINE
+  // ============================================================
+
+  function clearTriggerLine() {
+    if (
+      triggerLineRef.current &&
+      candleSeriesRef.current
+    ) {
+      try {
+        candleSeriesRef.current.removePriceLine(
+          triggerLineRef.current
+        );
+      } catch (error) {
+        console.warn(
+          "[Chart Bot] Could not remove trigger line:",
+          error
+        );
+      }
+    }
+
+    triggerLineRef.current =
+      null;
+  }
+
+  // ============================================================
+  // UPDATE TRIGGER LINE
+  // ============================================================
+
+  function updateTriggerLine(
+    bot = selectedBotRef.current
+  ) {
+    if (
+      !chartMountedRef.current
+    ) {
+      return;
+    }
+
+    clearTriggerLine();
+
+    if (
+      !candleSeriesRef.current
+    ) {
+      return;
+    }
+
+    if (!bot) {
+      return;
+    }
+
+    if (
+      bot.triggerLineEnabled !==
+      true
+    ) {
+      return;
+    }
+
+    const price =
+      Number(
+        bot.triggerLinePrice
+      );
+
+    if (
+      !Number.isFinite(price) ||
+      price <= 0
+    ) {
+      console.warn(
+        "[Chart Bot] Trigger Line enabled but trigger price is invalid:",
+        bot.triggerLinePrice
+      );
+
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // FINAL SAFETY CHECK
+    // ----------------------------------------------------------
+
+    if (
+      !chartMountedRef.current ||
+      !candleSeriesRef.current
+    ) {
+      return;
+    }
+
+    triggerLineRef.current =
+      candleSeriesRef.current.createPriceLine(
+        {
+          price:
+            price,
+
+          color:
+            "#facc15",
+
+          lineWidth:
+            2,
+
+          lineStyle:
+            2,
+
+          axisLabelVisible:
+            true,
+
+          title:
+            "TRIGGER",
+        }
+      );
+
+    console.log(
+      `[Chart Bot] Trigger line drawn at ${price}`
+    );
+  }
 
   // ============================================================
   // CLEAR ENTRY MARKERS
@@ -138,9 +333,16 @@ function ChartBot() {
     if (
       markersRef.current
     ) {
-      markersRef.current.setMarkers(
-        []
-      );
+      try {
+        markersRef.current.setMarkers(
+          []
+        );
+      } catch (error) {
+        console.warn(
+          "[Chart Bot] Could not clear markers:",
+          error
+        );
+      }
     }
   }
 
@@ -149,9 +351,11 @@ function ChartBot() {
   // ============================================================
 
   function addEntryMarker(
-    direction
+    direction,
+    entryNumber
   ) {
     if (
+      !chartMountedRef.current ||
       !markersRef.current ||
       !latestCandleRef.current
     ) {
@@ -176,12 +380,6 @@ function ChartBot() {
     ) {
       return;
     }
-
-    entryCountRef.current +=
-      1;
-
-    const entryNumber =
-      entryCountRef.current;
 
     const candle =
       latestCandleRef.current;
@@ -227,9 +425,23 @@ function ChartBot() {
       marker,
     ];
 
-    markersRef.current.setMarkers(
-      entryMarkersRef.current
-    );
+    if (
+      !chartMountedRef.current ||
+      !markersRef.current
+    ) {
+      return;
+    }
+
+    try {
+      markersRef.current.setMarkers(
+        entryMarkersRef.current
+      );
+    } catch (error) {
+      console.warn(
+        "[Chart Bot] Could not set entry marker:",
+        error
+      );
+    }
 
     console.log(
       `[Chart Bot] ${normalizedDirection} #${entryNumber} marker added at candle ${candle.time}`
@@ -247,16 +459,51 @@ function ChartBot() {
       const result =
         await getBots();
 
+      // ========================================================
+      // CURRENT BACKEND:
+      //
+      // GET /api/bots
+      //
+      // RETURNS:
+      //
+      // [
+      //   {
+      //     id: "...",
+      //     name: "...",
+      //     symbol: "POLUSDT"
+      //   }
+      // ]
+      //
+      // Also support old:
+      //
+      // {
+      //   data: [...]
+      // }
+      // ========================================================
+
       const loadedBots =
         Array.isArray(
-          result.data
+          result
         )
+          ? result
+          : Array.isArray(
+              result?.data
+            )
           ? result.data
           : [];
+
+      console.log(
+        "[Chart Bot] Loaded bots:",
+        loadedBots
+      );
 
       setBots(
         loadedBots
       );
+
+      // --------------------------------------------------------
+      // Automatically select first bot.
+      // --------------------------------------------------------
 
       if (
         loadedBots.length >
@@ -269,7 +516,7 @@ function ChartBot() {
       }
 
       // --------------------------------------------------------
-      // If selected bot was deleted, select first remaining bot.
+      // If selected bot was deleted.
       // --------------------------------------------------------
 
       if (
@@ -286,6 +533,20 @@ function ChartBot() {
           loadedBots[0].id
         );
       }
+
+      // --------------------------------------------------------
+      // No bots.
+      // --------------------------------------------------------
+
+      if (
+        loadedBots.length ===
+        0
+      ) {
+        setSelectedBotId("");
+      }
+
+      return loadedBots;
+
     } catch (err) {
       console.error(
         "[Chart Bot] Bot load error:",
@@ -293,8 +554,12 @@ function ChartBot() {
       );
 
       setError(
-        err.message
+        err.message ||
+        "Failed to load bots."
       );
+
+      return [];
+
     } finally {
       setLoadingBots(false);
     }
@@ -314,9 +579,27 @@ function ChartBot() {
   ) {
     if (
       !bot ||
-      !bot.symbol ||
+      !bot.symbol
+    ) {
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // CAPTURE CURRENT CHART GENERATION
+    // ----------------------------------------------------------
+
+    const requestGeneration =
+      chartGenerationRef.current;
+
+    if (
+      !chartMountedRef.current ||
+      !chartRef.current ||
       !candleSeriesRef.current
     ) {
+      console.warn(
+        "[Chart Bot] Chart not ready - skipping chart load"
+      );
+
       return;
     }
 
@@ -329,9 +612,69 @@ function ChartBot() {
           bot.symbol
         );
 
+      // ========================================================
+      // ASYNC SAFETY CHECK
+      //
+      // The chart may have been destroyed while getChart()
+      // was waiting for the backend.
+      // ========================================================
+
+      if (
+        !chartMountedRef.current
+      ) {
+        console.log(
+          "[Chart Bot] Chart was unmounted while loading - ignoring result"
+        );
+
+        return;
+      }
+
+      if (
+        requestGeneration !==
+        chartGenerationRef.current
+      ) {
+        console.log(
+          "[Chart Bot] Old chart generation - ignoring result"
+        );
+
+        return;
+      }
+
+      if (
+        !chartRef.current ||
+        !candleSeriesRef.current
+      ) {
+        console.log(
+          "[Chart Bot] Chart refs became unavailable - ignoring result"
+        );
+
+        return;
+      }
+
+      // ========================================================
+      // SUPPORT:
+      //
+      // direct array
+      //
+      // OR:
+      //
+      // { data: [...] }
+      // ========================================================
+
+      const chartData =
+        Array.isArray(
+          result
+        )
+          ? result
+          : Array.isArray(
+              result?.data
+            )
+          ? result.data
+          : [];
+
       if (
         !Array.isArray(
-          result.data
+          chartData
         )
       ) {
         throw new Error(
@@ -339,51 +682,108 @@ function ChartBot() {
         );
       }
 
+      // --------------------------------------------------------
+      // BOT SAFETY
+      // --------------------------------------------------------
+
       if (
         selectedBotRef.current?.id !==
         bot.id
       ) {
+        console.log(
+          "[Chart Bot] Bot changed while chart was loading - ignoring old result"
+        );
+
         return;
       }
 
-      candleSeriesRef.current.setData(
-        result.data
-      );
-
       // --------------------------------------------------------
-      // Save latest candle for entry markers.
+      // FINAL SETDATA SAFETY
       // --------------------------------------------------------
 
       if (
-        result.data.length >
+        !chartMountedRef.current ||
+        requestGeneration !==
+          chartGenerationRef.current ||
+        !chartRef.current ||
+        !candleSeriesRef.current
+      ) {
+        console.log(
+          "[Chart Bot] Chart became unavailable before setData - skipping"
+        );
+
+        return;
+      }
+
+      // --------------------------------------------------------
+      // SET CANDLE DATA
+      // --------------------------------------------------------
+
+      candleSeriesRef.current.setData(
+        chartData
+      );
+
+      // --------------------------------------------------------
+      // SAVE LATEST CANDLE
+      // --------------------------------------------------------
+
+      if (
+        chartData.length >
         0
       ) {
         latestCandleRef.current =
-          result.data[
-            result.data.length - 1
+          chartData[
+            chartData.length - 1
           ];
       }
 
       // --------------------------------------------------------
-      // Re-apply entry markers after chart refresh.
+      // RE-APPLY ENTRY MARKERS
       // --------------------------------------------------------
 
       if (
+        chartMountedRef.current &&
         markersRef.current
       ) {
-        markersRef.current.setMarkers(
-          entryMarkersRef.current
+        try {
+          markersRef.current.setMarkers(
+            entryMarkersRef.current
+          );
+        } catch (error) {
+          console.warn(
+            "[Chart Bot] Could not restore entry markers:",
+            error
+          );
+        }
+      }
+
+      // --------------------------------------------------------
+      // DRAW TRIGGER LINE
+      // --------------------------------------------------------
+
+      if (
+        chartMountedRef.current &&
+        candleSeriesRef.current
+      ) {
+        updateTriggerLine(
+          bot
         );
       }
 
+      // --------------------------------------------------------
+      // FIT CHART
+      // --------------------------------------------------------
+
       if (
         !keepZoom &&
+        chartMountedRef.current &&
         chartRef.current
       ) {
         chartRef.current
           .timeScale()
           .fitContent();
       }
+
     } catch (err) {
       console.error(
         "[Chart Bot] Chart load error:",
@@ -391,15 +791,24 @@ function ChartBot() {
       );
 
       if (
+        chartMountedRef.current &&
         selectedBotRef.current?.id ===
-        bot.id
+          bot.id
       ) {
         setError(
-          err.message
+          err.message ||
+          "Failed to load chart."
         );
       }
+
     } finally {
-      setChartLoading(false);
+      if (
+        chartMountedRef.current
+      ) {
+        setChartLoading(
+          false
+        );
+      }
     }
   }
 
@@ -413,6 +822,16 @@ function ChartBot() {
     ) {
       return;
     }
+
+    // ----------------------------------------------------------
+    // NEW CHART GENERATION
+    // ----------------------------------------------------------
+
+    chartGenerationRef.current +=
+      1;
+
+    const currentGeneration =
+      chartGenerationRef.current;
 
     const chart =
       createChart(
@@ -503,15 +922,15 @@ function ChartBot() {
         }
       );
 
-    // ----------------------------------------------------------
-    // MARKER CONTROLLER
-    // ----------------------------------------------------------
-
     const markerController =
       createSeriesMarkers(
         candleSeries,
         []
       );
+
+    // ----------------------------------------------------------
+    // SAVE REFS
+    // ----------------------------------------------------------
 
     chartRef.current =
       chart;
@@ -522,9 +941,21 @@ function ChartBot() {
     markersRef.current =
       markerController;
 
+    chartMountedRef.current =
+      true;
+
+    console.log(
+      `[Chart Bot] Chart created | Generation=${currentGeneration}`
+    );
+
+    // ----------------------------------------------------------
+    // RESIZE
+    // ----------------------------------------------------------
+
     const handleResize =
       () => {
         if (
+          !chartMountedRef.current ||
           !chartContainerRef.current ||
           !chartRef.current
         ) {
@@ -545,13 +976,74 @@ function ChartBot() {
       handleResize
     );
 
+    // ----------------------------------------------------------
+    // CLEANUP
+    // ----------------------------------------------------------
+
     return () => {
+      console.log(
+        `[Chart Bot] Destroying chart | Generation=${currentGeneration}`
+      );
+
+      // --------------------------------------------------------
+      // Mark chart dead FIRST.
+      // This prevents async getChart() from touching it.
+      // --------------------------------------------------------
+
+      chartMountedRef.current =
+        false;
+
+      // --------------------------------------------------------
+      // Invalidate every pending chart request.
+      // --------------------------------------------------------
+
+      chartGenerationRef.current +=
+        1;
+
       window.removeEventListener(
         "resize",
         handleResize
       );
 
-      chart.remove();
+      // --------------------------------------------------------
+      // Remove trigger line safely.
+      // --------------------------------------------------------
+
+      if (
+        triggerLineRef.current &&
+        candleSeriesRef.current
+      ) {
+        try {
+          candleSeriesRef.current.removePriceLine(
+            triggerLineRef.current
+          );
+        } catch (error) {
+          console.warn(
+            "[Chart Bot] Cleanup trigger line failed:",
+            error
+          );
+        }
+      }
+
+      triggerLineRef.current =
+        null;
+
+      // --------------------------------------------------------
+      // Remove chart.
+      // --------------------------------------------------------
+
+      try {
+        chart.remove();
+      } catch (error) {
+        console.warn(
+          "[Chart Bot] Chart cleanup failed:",
+          error
+        );
+      }
+
+      // --------------------------------------------------------
+      // Clear refs AFTER chart removal.
+      // --------------------------------------------------------
 
       chartRef.current =
         null;
@@ -560,6 +1052,9 @@ function ChartBot() {
         null;
 
       markersRef.current =
+        null;
+
+      latestCandleRef.current =
         null;
     };
   }, []);
@@ -572,22 +1067,41 @@ function ChartBot() {
     if (
       !selectedBot
     ) {
+      clearTriggerLine();
+
       return;
     }
 
-    // New bot = new chart marker set.
     clearEntryMarkers();
 
     latestCandleRef.current =
       null;
 
+    clearTriggerLine();
+
+    // ----------------------------------------------------------
+    // Clear old chart only if chart is alive.
+    // ----------------------------------------------------------
+
     if (
+      chartMountedRef.current &&
       candleSeriesRef.current
     ) {
-      candleSeriesRef.current.setData(
-        []
-      );
+      try {
+        candleSeriesRef.current.setData(
+          []
+        );
+      } catch (error) {
+        console.warn(
+          "[Chart Bot] Could not clear old chart:",
+          error
+        );
+      }
     }
+
+    // ----------------------------------------------------------
+    // Load selected bot chart.
+    // ----------------------------------------------------------
 
     loadBotChart(
       selectedBot,
@@ -595,6 +1109,30 @@ function ChartBot() {
     );
   }, [
     selectedBotId,
+  ]);
+
+  // ============================================================
+  // TRIGGER LINE SYNC
+  // ============================================================
+
+  useEffect(() => {
+    if (
+      !selectedBot ||
+      !chartMountedRef.current ||
+      !candleSeriesRef.current
+    ) {
+      clearTriggerLine();
+
+      return;
+    }
+
+    updateTriggerLine(
+      selectedBot
+    );
+  }, [
+    selectedBot?.triggerLineEnabled,
+    selectedBot?.triggerLinePrice,
+    selectedBot?.triggerState,
   ]);
 
   // ============================================================
@@ -607,12 +1145,32 @@ function ChartBot() {
         const bot =
           selectedBotRef.current;
 
-        if (bot) {
-          loadBotChart(
-            bot,
-            true
-          );
+        if (
+          !bot ||
+          !chartMountedRef.current
+        ) {
+          return;
         }
+
+        loadBotChart(
+          bot,
+          true
+        );
+
+        // ------------------------------------------------------
+        // Refresh backend bot state.
+        //
+        // Keeps:
+        //
+        // - pyramid count
+        // - trigger state
+        // - trigger price
+        // - bot status
+        //
+        // synchronized.
+        // ------------------------------------------------------
+
+        loadBots();
       }, REFRESH_INTERVAL);
 
     return () => {
@@ -627,7 +1185,37 @@ function ChartBot() {
   // ============================================================
 
   async function handleEnterPosition() {
-    if (!selectedBot) {
+    if (
+      !selectedBot
+    ) {
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // TRIGGER SAFETY BLOCK
+    // ----------------------------------------------------------
+
+    if (
+      botIsNeutral
+    ) {
+      setMessage(
+        "ENTRY BLOCKED — Bot is NEUTRAL. Trigger Line has not been activated."
+      );
+
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // PYRAMID SAFETY BLOCK
+    // ----------------------------------------------------------
+
+    if (
+      pyramidReachedMax
+    ) {
+      setMessage(
+        `ENTRY BLOCKED — Pyramid maximum reached (${pyramidCurrent}/${pyramidMax}).`
+      );
+
       return;
     }
 
@@ -642,17 +1230,39 @@ function ChartBot() {
         );
 
       // --------------------------------------------------------
-      // Add chart marker after successful entry.
+      // Refresh backend state.
       // --------------------------------------------------------
 
+      const refreshedBots =
+        await loadBots();
+
+      // --------------------------------------------------------
+      // Find refreshed bot.
+      // --------------------------------------------------------
+
+      const refreshedBot =
+        refreshedBots.find(
+          (bot) =>
+            bot.id ===
+            selectedBot.id
+        );
+
+      const markerNumber =
+        Number(
+          refreshedBot?.currentPositionCount ??
+          pyramidCurrent + 1
+        );
+
       addEntryMarker(
-        selectedBot.direction
+        selectedBot.direction,
+        markerNumber
       );
 
       setMessage(
         result.message ||
           `${selectedBot.direction} position opened. TP/SL will be added in 30 seconds.`
       );
+
     } catch (err) {
       console.error(
         "[Chart Bot] Entry error:",
@@ -660,8 +1270,10 @@ function ChartBot() {
       );
 
       setError(
-        err.message
+        err.message ||
+        "Entry failed."
       );
+
     } finally {
       setActionLoading(false);
     }
@@ -672,7 +1284,9 @@ function ChartBot() {
   // ============================================================
 
   async function handleClosePosition() {
-    if (!selectedBot) {
+    if (
+      !selectedBot
+    ) {
       return;
     }
 
@@ -687,16 +1301,22 @@ function ChartBot() {
         );
 
       // --------------------------------------------------------
-      // Position is closed.
-      // Clear all entry markers.
+      // Clear markers.
       // --------------------------------------------------------
 
       clearEntryMarkers();
+
+      // --------------------------------------------------------
+      // Refresh backend state.
+      // --------------------------------------------------------
+
+      await loadBots();
 
       setMessage(
         result.message ||
           "Position closed."
       );
+
     } catch (err) {
       console.error(
         "[Chart Bot] Close error:",
@@ -704,8 +1324,10 @@ function ChartBot() {
       );
 
       setError(
-        err.message
+        err.message ||
+        "Close failed."
       );
+
     } finally {
       setActionLoading(false);
     }
@@ -854,6 +1476,8 @@ function ChartBot() {
 
             <tbody>
 
+              {/* BOT NAME */}
+
               <tr>
                 <td>
                   Bot Name
@@ -863,6 +1487,8 @@ function ChartBot() {
                   {selectedBot.name}
                 </td>
               </tr>
+
+              {/* DIRECTION */}
 
               <tr>
                 <td>
@@ -874,6 +1500,8 @@ function ChartBot() {
                 </td>
               </tr>
 
+              {/* ENTRY METHOD */}
+
               <tr>
                 <td>
                   Entry Method
@@ -883,6 +1511,8 @@ function ChartBot() {
                   Button Press
                 </td>
               </tr>
+
+              {/* STOP LOSS */}
 
               <tr>
                 <td>
@@ -894,6 +1524,8 @@ function ChartBot() {
                 </td>
               </tr>
 
+              {/* TAKE PROFIT */}
+
               <tr>
                 <td>
                   Take Profit
@@ -904,9 +1536,125 @@ function ChartBot() {
                 </td>
               </tr>
 
-              {/* ==================================================
-                  ENTER
-                  ================================================== */}
+              {/* TRIGGER LINE */}
+
+              <tr>
+                <td>
+                  Trigger Line
+                </td>
+
+                <td>
+                  {triggerLineEnabled
+                    ? `ON — ${triggerLinePrice}`
+                    : "OFF"}
+                </td>
+              </tr>
+
+              {/* TRIGGER STATUS */}
+
+              <tr>
+                <td>
+                  Trigger Status
+                </td>
+
+                <td>
+                  <strong>
+                    {triggerState}
+                  </strong>
+                </td>
+              </tr>
+
+              {/* PYRAMID */}
+
+              <tr>
+                <td>
+                  Pyramid
+                </td>
+
+                <td>
+
+                  <table
+                    style={{
+                      width:
+                        "100%",
+
+                      borderCollapse:
+                        "collapse",
+                    }}
+                  >
+
+                    <tbody>
+
+                      <tr>
+                        <td>
+                          Entries
+                        </td>
+
+                        <td
+                          style={{
+                            textAlign:
+                              "right",
+
+                            fontWeight:
+                              "bold",
+                          }}
+                        >
+                          {pyramidCurrent}
+                          {" / "}
+                          {pyramidMax}
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td>
+                          Remaining
+                        </td>
+
+                        <td
+                          style={{
+                            textAlign:
+                              "right",
+
+                            fontWeight:
+                              "bold",
+                          }}
+                        >
+                          {Math.max(
+                            0,
+                            pyramidMax -
+                              pyramidCurrent
+                          )}
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td>
+                          Status
+                        </td>
+
+                        <td
+                          style={{
+                            textAlign:
+                              "right",
+
+                            fontWeight:
+                              "bold",
+                          }}
+                        >
+                          {pyramidReachedMax
+                            ? "MAX REACHED"
+                            : "AVAILABLE"}
+                        </td>
+                      </tr>
+
+                    </tbody>
+
+                  </table>
+
+                </td>
+              </tr>
+
+              {/* ENTER */}
 
               <tr>
                 <td>
@@ -922,22 +1670,22 @@ function ChartBot() {
                       handleEnterPosition
                     }
                     disabled={
-                      actionLoading ||
-                      selectedBot.status !==
-                        "ACTIVE"
+                      enterBlocked
                     }
                   >
                     {actionLoading
                       ? "WORKING..."
-                      : `ENTER ${selectedBot.direction}`}
+                      : pyramidReachedMax
+                        ? `PYRAMID FULL ${pyramidCurrent}/${pyramidMax}`
+                        : botIsNeutral
+                          ? "BLOCKED — NEUTRAL"
+                          : `ENTER ${selectedBot.direction}`}
                   </button>
 
                 </td>
               </tr>
 
-              {/* ==================================================
-                  CLOSE
-                  ================================================== */}
+              {/* CLOSE */}
 
               <tr>
                 <td>
