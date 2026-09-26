@@ -20,9 +20,9 @@ Project:
 
 Location:
 
-```text
+text
 D:\Trading Bots\trading_bot_v4_react
-```
+
 
 Stack:
 
@@ -55,7 +55,7 @@ Meaning:
 
 The important design decision:
 
-```text
+text
 ENTRY MODEL
      |
      | FINAL SIGNAL
@@ -74,7 +74,7 @@ EXECUTION
      |
      v
 WEEX
-```
+
 
 The system is intentionally separated.
 
@@ -88,21 +88,21 @@ It does NOT directly contain WEEX execution logic.
 
 Examples:
 
-```text
+text
 Orderbook Model
 Price Model
 EMA Model
 RSI Model
 Future Models
-```
+
 
 All models can eventually produce the same type of signal:
 
-```text
+text
 LONG
 SHORT
 NEUTRAL
-```
+
 
 ---
 
@@ -134,9 +134,9 @@ The bot should remain the central authority for whether an entry is allowed.
 
 File:
 
-```text
+text
 frontend/src/pages/ChartBot.jsx
-```
+
 
 ChartBot is the bot control / monitoring page.
 
@@ -159,15 +159,15 @@ It is useful for manual testing.
 
 The button uses:
 
-```js
+js
 enterBot(selectedBot.id)
-```
+
 
 This allows us to manually test the bot independently from Entry Models.
 
 Example:
 
-```text
+text
 Trigger = NEUTRAL
         |
         v
@@ -175,11 +175,11 @@ ENTER
         |
         v
 BLOCKED
-```
+
 
 Then:
 
-```text
+text
 Trigger = ARMED
         |
         v
@@ -187,11 +187,11 @@ ENTER
         |
         v
 Entry
-```
+
 
 Then pyramid:
 
-```text
+text
 Pyramid 0/2
     |
     v
@@ -211,7 +211,7 @@ ENTER
     |
     v
 BLOCKED — PYRAMID FULL
-```
+
 
 This is an important testing tool.
 
@@ -221,16 +221,16 @@ This is an important testing tool.
 
 Frontend:
 
-```text
+text
 frontend/src/pages/EntryModel.jsx
-```
+
 
 Backend:
 
-```text
+text
 backend/entry-models/orderbookEntryModel.js
 backend/routes/entryModels.js
-```
+
 
 Current Entry Model is an **Orderbook Entry Model**.
 
@@ -242,7 +242,7 @@ It currently does NOT directly execute trades.
 
 Current WEEX orderbook design:
 
-```text
+text
 Request ONE 200-level snapshot
         |
         v
@@ -252,7 +252,7 @@ Same snapshot
         +---- depth 20
         +---- depth 30
         +---- depth 60
-```
+
 
 Important:
 
@@ -266,7 +266,7 @@ One 200-level snapshot is taken and split locally.
 
 Current constants:
 
-```js
+js
 WEEX_REQUEST_DEPTH = 200
 
 CONFIRMATION_DEPTHS = [15, 20, 30, 60]
@@ -280,31 +280,31 @@ SHORT_MAX_IMBALANCE = -0.005
 MIN_BID_ASK_RATIO = 0.90
 
 MIN_ASK_BID_RATIO = 0.90
-```
+
 
 Imbalance:
 
-```text
+text
 (bidLiquidity - askLiquidity)
 /
 (bidLiquidity + askLiquidity)
-```
+
 
 LONG depth condition:
 
-```text
+text
 imbalance >= 0.005
 AND
 bid/ask >= 0.90
-```
+
 
 SHORT depth condition:
 
-```text
+text
 imbalance <= -0.005
 AND
 ask/bid >= 0.90
-```
+
 
 ---
 
@@ -314,41 +314,41 @@ The bot direction is fixed.
 
 Example:
 
-```text
+text
 Bot = LONG
-```
+
 
 The Entry Model looks for an orderbook pullback:
 
-```text
+text
 Bot direction = LONG
 Opposite orderbook direction = SHORT
-```
+
 
 If 3 of 4 depths confirm SHORT:
 
-```text
+text
 Entry Model decision = LONG
-```
+
 
 For a SHORT bot:
 
-```text
+text
 Bot direction = SHORT
 Opposite orderbook direction = LONG
-```
+
 
 If 3 of 4 depths confirm LONG:
 
-```text
+text
 Entry Model decision = SHORT
-```
+
 
 Otherwise:
 
-```text
+text
 NEUTRAL
-```
+
 
 NEUTRAL is expected and is NOT a competing trading direction.
 
@@ -358,32 +358,32 @@ NEUTRAL is expected and is NOT a competing trading direction.
 
 The model scans every:
 
-```text
+text
 1 minute
-```
+
 
 Each scan:
 
-```text
+text
 ONE 200-level orderbook snapshot
-```
+
 
 The snapshot is evaluated at:
 
-```text
+text
 15
 20
 30
 60
-```
+
 
 A scan produces:
 
-```text
+text
 LONG
 SHORT
 NEUTRAL
-```
+
 
 The model stores every scan.
 
@@ -393,28 +393,28 @@ The model stores every scan.
 
 One cycle contains:
 
-```text
+text
 10 scans
-```
+
 
 At the end:
 
-```text
+text
 6/10 or more confirmations
         |
         v
 Bot direction
-```
+
 
 Otherwise:
 
-```text
+text
 NEUTRAL
-```
+
 
 Example LONG bot:
 
-```text
+text
 1  NEUTRAL
 2  LONG
 3  LONG
@@ -429,11 +429,11 @@ Example LONG bot:
 LONG = 6/10
 
 FINAL = LONG
-```
+
 
 After completion:
 
-```text
+text
 Current Cycle
       |
       v
@@ -441,7 +441,7 @@ Previous Cycles
       |
       v
 New Current Cycle
-```
+
 
 The cycle continues indefinitely while the bot remains ARMED.
 
@@ -455,9 +455,9 @@ Current trigger behavior:
 
 Bot starts:
 
-```text
+text
 ARMED
-```
+
 
 The Entry Model can scan immediately.
 
@@ -465,21 +465,21 @@ The Entry Model can scan immediately.
 
 Bot starts:
 
-```text
+text
 NEUTRAL
-```
+
 
 until the trigger price is touched/crossed.
 
 After trigger activation:
 
-```text
+text
 NEUTRAL
    |
    | trigger touched
    v
 ARMED
-```
+
 
 Once ARMED, it stays ARMED unless the bot lifecycle changes it.
 
@@ -503,23 +503,23 @@ Pyramid belongs to the bot.
 
 Example:
 
-```text
+text
 pyramidMax = 2
-```
+
 
 Positions:
 
-```text
+text
 0/2
 1/2
 2/2
-```
+
 
 At:
 
-```text
+text
 2/2
-```
+
 
 another entry must be blocked.
 
@@ -535,7 +535,7 @@ The bot decides whether the signal can become an entry.
 
 The intended final architecture is:
 
-```text
+text
                     ENTRY MODELS
                          |
           +--------------+--------------+
@@ -566,7 +566,7 @@ The intended final architecture is:
                          |
                          v
                         WEEX
-```
+
 
 ---
 
@@ -576,7 +576,7 @@ Do NOT build separate execution systems for each Entry Model.
 
 Bad:
 
-```text
+text
 Orderbook Model
    -> own WEEX execution
 
@@ -585,17 +585,17 @@ Price Model
 
 EMA Model
    -> own WEEX execution
-```
+
 
 Correct:
 
-```text
+text
 Orderbook Model
    \
 Price Model ----> Bot ----> Execution ----> WEEX
    /
 EMA Model
-```
+
 
 This keeps execution centralized.
 
@@ -605,7 +605,7 @@ This keeps execution centralized.
 
 Original idea was approximately:
 
-```text
+text
 Chart
  |
  +-- Orderbook
@@ -614,26 +614,26 @@ Chart
  +-- Pyramid
  +-- Execution
  +-- everything
-```
+
 
 That can work initially, but becomes difficult when more models are added.
 
 Future:
 
-```text
+text
 Orderbook
 Price
 EMA
 RSI
 Breakout
 Volume
-```
+
 
 Putting all of these into ChartBot would make ChartBot increasingly large and difficult to maintain.
 
 Instead:
 
-```text
+text
 ChartBot
     |
     +-- monitor/control bot
@@ -641,7 +641,7 @@ ChartBot
 Entry Models
     |
     +-- generate signals
-```
+
 
 This keeps responsibilities clear.
 
@@ -649,7 +649,7 @@ This keeps responsibilities clear.
 
 # 17. CURRENT BACKEND STRUCTURE
 
-```text
+text
 backend/
 │
 ├── server.js
@@ -662,7 +662,7 @@ backend/
 │   └── orderbookEntryModel.js
 │
 └── test-entry-model.js
-```
+
 
 Main execution remains outside this Entry Model module.
 
@@ -670,27 +670,27 @@ Main execution remains outside this Entry Model module.
 
 # 18. CURRENT EXECUTION STRUCTURE
 
-```text
+text
 execution/
 ├── account.js
 ├── orders.js
 ├── positions.js
 └── weexClient.js
-```
+
 
 Config:
 
-```text
+text
 config/
 └── weex.js
-```
+
 
 Market:
 
-```text
+text
 market/
 └── marketData.js
-```
+
 
 DO NOT rewrite these unless specifically required.
 
@@ -700,7 +700,7 @@ The execution system is already working.
 
 # 19. FRONTEND STRUCTURE
 
-```text
+text
 frontend/
 └── src/
     ├── api.js
@@ -710,11 +710,11 @@ frontend/
         ├── ChartBot.jsx
         ├── EntryModel.jsx
         └── EntryModel.css
-```
+
 
 Important API functions include:
 
-```js
+js
 getBots()
 getChart()
 enterBot(botId)
@@ -728,7 +728,7 @@ scanEntryModel(
   botDirection,
   triggerState
 )
-```
+
 
 Do NOT replace `api.js` wholesale unless specifically requested.
 
@@ -738,32 +738,32 @@ Do NOT replace `api.js` wholesale unless specifically requested.
 
 Route:
 
-```text
+text
 POST /api/entry-models/orderbook/scan
-```
+
 
 Input:
 
-```json
+json
 {
   "symbol": "POLUSDT",
   "botDirection": "LONG",
   "triggerState": "ARMED"
 }
-```
+
 
 If the bot is not ARMED:
 
-```json
+json
 {
   "scanned": false,
   "reason": "BOT_NOT_ARMED"
 }
-```
+
 
 If ARMED:
 
-```text
+text
 one WEEX orderbook request
         |
         v
@@ -771,13 +771,13 @@ orderbook model
         |
         v
 result
-```
+
 
 Current Entry Model is still configured as:
 
-```text
+text
 tradingEnabled = false
-```
+
 
 It does not trade directly.
 
@@ -787,7 +787,7 @@ It does not trade directly.
 
 The next architectural step is:
 
-```text
+text
 Entry Model FINAL SIGNAL
           |
           v
@@ -795,17 +795,17 @@ selected bot
           |
           v
 existing enterBot(botId)
-```
+
 
 Before enabling real automatic execution, test the signal connection in DRY RUN mode.
 
 Expected log:
 
-```text
+text
 [Entry Model] FINAL SIGNAL | POLUSDT | LONG | 7/10
 [Entry Model] Sending signal -> botId=...
 [Bot] Signal received -> POLUSDT LONG
-```
+
 
 Only after this is confirmed should actual automatic entry be enabled.
 
@@ -823,7 +823,7 @@ Entry Model should NOT bypass:
 
 The safest architecture is:
 
-```text
+text
 Entry Model says:
 
 "I have a LONG signal."
@@ -835,7 +835,7 @@ Bot says:
 Execution says:
 
 "Execute the approved entry."
-```
+
 
 ---
 
@@ -843,15 +843,15 @@ Execution says:
 
 Current testing symbol:
 
-```text
+text
 POLUSDT
-```
+
 
 Current successful test history includes:
 
-```text
+text
 POLUSDT LONG
-```
+
 
 with existing:
 
@@ -874,12 +874,12 @@ Use ChartBot ENTER button.
 
 Verify:
 
-```text
+text
 Trigger
 Pyramid
 Status
 Entry
-```
+
 
 ### Test 2 — Entry Model
 
@@ -887,24 +887,24 @@ Run Entry Model without execution.
 
 Verify:
 
-```text
+text
 1-minute scans
 10-minute cycle
 6/10 rule
 Previous cycles
 LONG/SHORT/NEUTRAL
-```
+
 
 ### Test 3 — Signal connection
 
 Use:
 
-```text
+text
 Entry Model
    |
    v
 Bot
-```
+
 
 but initially DRY RUN.
 
@@ -912,7 +912,7 @@ but initially DRY RUN.
 
 Only after the above works:
 
-```text
+text
 Entry Model
    |
    v
@@ -923,7 +923,7 @@ enterBot()
    |
    v
 WEEX
-```
+
 
 ---
 
@@ -958,11 +958,11 @@ WEEX
 
 ## Not yet connected
 
-```text
+text
 Entry Model FINAL SIGNAL
         ↓
        Bot
-```
+
 
 Automatic Entry Model execution is NOT enabled yet.
 
@@ -972,14 +972,14 @@ Automatic Entry Model execution is NOT enabled yet.
 
 The user originally considered putting everything inside ChartBot:
 
-```text
+text
 Chart
 Orderbook
 Entry Model
 Trigger
 Pyramid
 Execution
-```
+
 
 Decision:
 
@@ -987,7 +987,7 @@ Decision:
 
 Keep:
 
-```text
+text
 ChartBot = Bot control + monitoring
 
 Entry Model = Signal generation
@@ -995,7 +995,7 @@ Entry Model = Signal generation
 Bot = Entry permission + bot rules
 
 Execution = WEEX execution
-```
+
 
 This is the current architecture.
 
@@ -1005,7 +1005,7 @@ This is the current architecture.
 
 Possible future structure:
 
-```text
+text
 backend/entry-models/
 
 orderbookEntryModel.js
@@ -1013,15 +1013,15 @@ priceEntryModel.js
 emaEntryModel.js
 rsiEntryModel.js
 breakoutEntryModel.js
-```
+
 
 All produce a common signal concept:
 
-```text
+text
 LONG
 SHORT
 NEUTRAL
-```
+
 
 The bot does not care which model generated the signal.
 
@@ -1031,13 +1031,13 @@ The bot does not care which model generated the signal.
 
 Eventually we may have:
 
-```text
+text
 Orderbook ----\
 Price ---------\
 EMA ------------> Combined Entry Model ---> Bot
 RSI -----------/
 Volume --------/
-```
+
 
 But do NOT build this yet.
 
@@ -1056,7 +1056,7 @@ When starting a new ChatGPT conversation:
 
 Recommended message:
 
-```text
+text
 Continue WEEX Bot Lab from this README.
 
 Caveman Turbo mode.
@@ -1068,7 +1068,7 @@ Do not redesign the architecture.
 Do not touch working execution code unless required.
 Give me the complete file when changing a file.
 One change at a time.
-```
+
 
 ---
 
@@ -1076,7 +1076,7 @@ One change at a time.
 
 Keep the system simple:
 
-```text
+text
 MODEL
   ↓
 SIGNAL
@@ -1086,7 +1086,7 @@ BOT
 EXECUTION
   ↓
 WEEX
-```
+
 
 Do not make every component know everything about every other component.
 

@@ -245,6 +245,76 @@ export async function getEntryModelEngines() {
 }
 
 // ============================================================
+// BOT MANAGEMENT — ENTRY MODEL START
+// ============================================================
+
+export async function startEntryModel(
+  botId
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(
+        botId
+      )}/entry-model/start`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+      "Failed to start Entry Model."
+    );
+  }
+
+  return data;
+}
+
+// ============================================================
+// BOT MANAGEMENT — ENTRY MODEL STOP
+// ============================================================
+
+export async function stopEntryModel(
+  botId
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(
+        botId
+      )}/entry-model/stop`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+      "Failed to stop Entry Model."
+    );
+  }
+
+  return data;
+}
+
+// ============================================================
 // ACCOUNT
 // ============================================================
 
@@ -702,4 +772,3 @@ export async function updatePolusdtTpSl(
     takeProfit
   );
 }
-

@@ -10,6 +10,8 @@ import {
   pauseBot,
   resumeBot,
   deleteBot,
+  startEntryModel,
+  stopEntryModel,
 } from "../api";
 
 import "./BotManagement.css";
@@ -43,6 +45,11 @@ function BotManagement() {
   const [
     actionBotId,
     setActionBotId,
+  ] = useState("");
+
+  const [
+    entryModelActionBotId,
+    setEntryModelActionBotId,
   ] = useState("");
 
   const [
@@ -126,12 +133,6 @@ function BotManagement() {
 
       // ========================================================
       // SYMBOLS
-      //
-      // Support both:
-      //   [ "BTCUSDT", "ETHUSDT" ]
-      //
-      // and:
-      //   { data: [ "BTCUSDT", "ETHUSDT" ] }
       // ========================================================
 
       const loadedSymbols =
@@ -147,18 +148,6 @@ function BotManagement() {
 
       // ========================================================
       // BOTS
-      //
-      // CURRENT BACKEND RETURNS:
-      //
-      //   [
-      //     {
-      //       id: "...",
-      //       name: "...",
-      //       symbol: "POLUSDT"
-      //     }
-      //   ]
-      //
-      // Also support old wrapped format just in case.
       // ========================================================
 
       const loadedBots =
@@ -395,18 +384,11 @@ function BotManagement() {
       // SUPPORT BOTH:
       //
       // DIRECT BOT
-      // {
-      //   id: "...",
-      //   name: "..."
-      // }
       //
-      // AND OLD:
+      // AND:
       //
       // {
-      //   data: {
-      //     id: "...",
-      //     name: "..."
-      //   }
+      //   data: bot
       // }
       // ========================================================
 
@@ -534,6 +516,89 @@ function BotManagement() {
       );
     } finally {
       setActionBotId("");
+    }
+  }
+
+  // ============================================================
+  // ENTRY MODEL START / STOP
+  // ============================================================
+
+  async function handleEntryModelToggle(
+    bot
+  ) {
+    try {
+      setEntryModelActionBotId(
+        bot.id
+      );
+
+      setMessage("");
+      setError("");
+
+      // ========================================================
+      // CHECK CURRENT ENGINE STATE
+      // ========================================================
+
+      const engineRunning =
+        bot.entryModelRunning ===
+        true ||
+        bot.entryModelStatus ===
+        "RUNNING" ||
+        bot.entryModelState ===
+        "RUNNING";
+
+      // ========================================================
+      // STOP
+      // ========================================================
+
+      if (engineRunning) {
+        console.log(
+          `[Bot Management] STOP ENTRY MODEL | Bot=${bot.id}`
+        );
+
+        await stopEntryModel(
+          bot.id
+        );
+
+        setMessage(
+          `${bot.name} Entry Model stopped.`
+        );
+      }
+
+      // ========================================================
+      // START
+      // ========================================================
+
+      else {
+        console.log(
+          `[Bot Management] START ENTRY MODEL | Bot=${bot.id}`
+        );
+
+        await startEntryModel(
+          bot.id
+        );
+
+        setMessage(
+          `${bot.name} Entry Model started.`
+        );
+      }
+
+      // ========================================================
+      // REFRESH BOT DATA
+      // ========================================================
+
+      await loadData();
+    } catch (err) {
+      console.error(
+        "[Bot Management] Entry Model error:",
+        err
+      );
+
+      setError(
+        err.message ||
+        "Failed to change Entry Model state."
+      );
+    } finally {
+      setEntryModelActionBotId("");
     }
   }
 
@@ -985,6 +1050,14 @@ function BotManagement() {
                 bot.triggerLineEnabled ===
                 true;
 
+              const engineRunning =
+                bot.entryModelRunning ===
+                true ||
+                bot.entryModelStatus ===
+                "RUNNING" ||
+                bot.entryModelState ===
+                "RUNNING";
+
               return (
                 <div
                   className="bot-card"
@@ -1127,9 +1200,52 @@ function BotManagement() {
                       </strong>
                     </div>
 
+                    {/* ENTRY MODEL STATE */}
+
+                    <div>
+                      <span>
+                        ENTRY MODEL
+                      </span>
+
+                      <strong>
+                        {engineRunning
+                          ? "RUNNING"
+                          : "STOPPED"}
+                      </strong>
+                    </div>
+
                   </div>
 
                   <div className="bot-card-actions">
+
+                    {/* ENTRY MODEL START / STOP */}
+
+                    <button
+                      type="button"
+                      className="bot-toggle-button"
+                      onClick={() =>
+                        handleEntryModelToggle(
+                          bot
+                        )
+                      }
+                      disabled={
+                        entryModelActionBotId ===
+                          bot.id ||
+                        deletingBotId ===
+                          bot.id ||
+                        actionBotId ===
+                          bot.id ||
+                        bot.status !==
+                          "ACTIVE"
+                      }
+                    >
+                      {entryModelActionBotId ===
+                      bot.id
+                        ? "WORKING..."
+                        : engineRunning
+                        ? "STOP ENTRY MODEL"
+                        : "START ENTRY MODEL"}
+                    </button>
 
                     {/* PAUSE / RESUME */}
 
@@ -1145,6 +1261,8 @@ function BotManagement() {
                         actionBotId ===
                           bot.id ||
                         deletingBotId ===
+                          bot.id ||
+                        entryModelActionBotId ===
                           bot.id
                       }
                     >
@@ -1171,6 +1289,8 @@ function BotManagement() {
                         deletingBotId ===
                           bot.id ||
                         actionBotId ===
+                          bot.id ||
+                        entryModelActionBotId ===
                           bot.id
                       }
                     >
@@ -1196,4 +1316,3 @@ function BotManagement() {
 }
 
 export default BotManagement;
-

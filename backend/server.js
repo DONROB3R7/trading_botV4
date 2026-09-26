@@ -25,6 +25,9 @@ const createBotsRouter =
 const createEntryModelsRouter =
   require("./routes/entryModels");
 
+const createMasterBotBridge =
+  require("./entry-models/masterBotBridge");
+
 const app =
   express();
 
@@ -112,6 +115,23 @@ const botsRouter =
     positions,
   });
 
+// ============================================================
+// MASTER BOT BRIDGE
+// ============================================================
+//
+// This does NOT contain trading logic.
+//
+// It only provides Entry Model with a way to press
+// the existing Master Bot ENTER endpoint.
+//
+// ============================================================
+
+const masterBotBridge =
+  createMasterBotBridge({
+    port:
+      config.port,
+  });
+
 app.use(
   "/api/bots",
   botsRouter
@@ -138,6 +158,8 @@ const entryModelsRouter =
   createEntryModelsRouter({
     getBot:
       botsRouter.getBot,
+
+    masterBotBridge,
   });
 
 app.use(
@@ -720,3 +742,4 @@ app.listen(
 
   }
 );
+

@@ -2,6 +2,15 @@ const express = require("express");
 
 const router = express.Router();
 
+const tradeCycleManager =
+  require("../cycle/tradeCycleManager");
+
+const tradeLifecycle =
+  require("../lifecycle/tradeLifecycle");
+
+const entryModelEngine =
+  require("../entry-models/entryModelEngine");
+
 // ============================================================
 // IN-MEMORY BOT STORAGE
 // ============================================================
@@ -92,14 +101,12 @@ function extractPrice(result) {
     return null;
   }
 
-  // Direct number
   if (typeof result === "number") {
     return Number.isFinite(result)
       ? result
       : null;
   }
 
-  // String number
   if (typeof result === "string") {
     const number = Number(result);
 
@@ -108,7 +115,6 @@ function extractPrice(result) {
       : null;
   }
 
-  // Object
   if (typeof result === "object") {
     const candidates = [
       result.price,
@@ -130,7 +136,6 @@ function extractPrice(result) {
       }
     }
 
-    // Array inside data
     if (Array.isArray(result.data)) {
       for (const item of result.data) {
         const number = extractPrice(item);
@@ -141,7 +146,6 @@ function extractPrice(result) {
       }
     }
 
-    // Direct array
     if (Array.isArray(result)) {
       for (const item of result) {
         const number = extractPrice(item);
@@ -168,10 +172,6 @@ async function getCurrentMarketPrice(symbol) {
   if (!cleanSymbolValue) {
     throw new Error("Missing symbol");
   }
-
-  // ==========================================================
-  // WEEX V3 SYMBOL PRICE
-  // ==========================================================
 
   const url =
     `${WEEX_BASE_URL}/capi/v3/market/symbolPrice` +
@@ -218,7 +218,6 @@ function hasTriggerLineTouched(
     return false;
   }
 
-  // Exact touch
   if (currentPrice === triggerPrice) {
     return true;
   }
@@ -227,7 +226,6 @@ function hasTriggerLineTouched(
     return true;
   }
 
-  // Cross upward
   if (
     previousPrice < triggerPrice &&
     currentPrice > triggerPrice
@@ -235,7 +233,6 @@ function hasTriggerLineTouched(
     return true;
   }
 
-  // Cross downward
   if (
     previousPrice > triggerPrice &&
     currentPrice < triggerPrice
@@ -280,7 +277,6 @@ function startTriggerMonitor(bot) {
     return;
   }
 
-  // Prevent duplicate timers
   stopTriggerMonitor(bot);
 
   console.log(
@@ -291,20 +287,11 @@ function startTriggerMonitor(bot) {
 
   const timer = setInterval(async () => {
     try {
-      // --------------------------------------------------------
-      // Trigger disabled
-      // --------------------------------------------------------
 
       if (bot.triggerLineEnabled !== true) {
         stopTriggerMonitor(bot);
         return;
       }
-
-      // --------------------------------------------------------
-      // Already armed
-      //
-      // NEVER go back to neutral.
-      // --------------------------------------------------------
 
       if (bot.triggerState === "ARMED") {
         stopTriggerMonitor(bot);
@@ -325,18 +312,17 @@ function startTriggerMonitor(bot) {
         return;
       }
 
-      // --------------------------------------------------------
-      // GET CURRENT PRICE
-      // --------------------------------------------------------
-
       let currentPrice;
 
       try {
+
         currentPrice =
           await getCurrentMarketPrice(
             bot.symbol
           );
+
       } catch (error) {
+
         console.log(
           `[Trigger:${bot.symbol}] ` +
           `Price fetch failed: ${error.message}`
@@ -366,14 +352,11 @@ function startTriggerMonitor(bot) {
         `Trigger=${triggerPrice}`
       );
 
-      // --------------------------------------------------------
-      // NO BASELINE
-      // --------------------------------------------------------
-
       if (
         !Number.isFinite(previousPrice) ||
         previousPrice <= 0
       ) {
+
         bot.triggerLastPrice =
           currentPrice;
 
@@ -385,10 +368,6 @@ function startTriggerMonitor(bot) {
         return;
       }
 
-      // --------------------------------------------------------
-      // CHECK TOUCH / CROSS
-      // --------------------------------------------------------
-
       const touched =
         hasTriggerLineTouched(
           previousPrice,
@@ -396,11 +375,8 @@ function startTriggerMonitor(bot) {
           triggerPrice
         );
 
-      // --------------------------------------------------------
-      // TRIGGER HIT
-      // --------------------------------------------------------
-
       if (touched) {
+
         bot.triggerState = "ARMED";
 
         bot.triggerArmedAt =
@@ -420,28 +396,23 @@ function startTriggerMonitor(bot) {
           `Trigger=${triggerPrice}`
         );
 
-        // Stop checking.
-        //
-        // ARMED stays ARMED forever.
         stopTriggerMonitor(bot);
 
         return;
       }
 
-      // --------------------------------------------------------
-      // NOT TOUCHED
-      //
-      // Current valid price becomes next baseline.
-      // --------------------------------------------------------
-
       bot.triggerLastPrice =
         currentPrice;
+
     } catch (error) {
+
       console.error(
         `[Trigger:${bot.symbol}] Monitor error:`,
         error.message
       );
+
     }
+
   }, TRIGGER_CHECK_MS);
 
   triggerTimers.set(
@@ -458,6 +429,26 @@ module.exports = function createBotsRouter({
   orders,
   positions,
 }) {
+
+  // ==========================================================
+  // CONNECT TRADE LIFECYCLE
+  // ==========================================================
+
+  tradeLifecycle.configure({
+    orders,
+    positions,
+  });
+
+  tradeLifecycle.configureBotLookup(
+    (botId) => {
+
+      return bots.find(
+        (bot) =>
+          bot.id === botId
+      ) || null;
+
+    }
+  );
 
   // ==========================================================
   // GET ALL BOTS
@@ -566,10 +557,6 @@ module.exports = function createBotsRouter({
           0
         );
 
-      // ------------------------------------------------------
-      // TRIGGER PRICE ONLY REQUIRED WHEN ENABLED
-      // ------------------------------------------------------
-
       if (
         triggerLineEnabled &&
         (
@@ -590,9 +577,6 @@ module.exports = function createBotsRouter({
 
       // ======================================================
       // INITIAL TRIGGER STATE
-      //
-      // ENABLED  -> NEUTRAL
-      // DISABLED -> ARMED
       // ======================================================
 
       let initialTriggerPrice =
@@ -612,8 +596,6 @@ module.exports = function createBotsRouter({
 
       // ======================================================
       // TRIGGER LINE ENABLED
-      //
-      // Get initial price and start NEUTRAL.
       // ======================================================
 
       if (triggerLineEnabled) {
@@ -633,10 +615,6 @@ module.exports = function createBotsRouter({
             `Creation baseline=${initialTriggerPrice} | ` +
             `Trigger=${triggerLinePrice}`
           );
-
-          // --------------------------------------------------
-          // EXACTLY ON LINE AT CREATION
-          // --------------------------------------------------
 
           if (
             initialTriggerPrice ===
@@ -676,12 +654,6 @@ module.exports = function createBotsRouter({
         }
 
       } else {
-
-        // ====================================================
-        // TRIGGER LINE DISABLED
-        //
-        // BOT IS READY IMMEDIATELY.
-        // ====================================================
 
         initialTriggerState =
           "ARMED";
@@ -768,8 +740,6 @@ module.exports = function createBotsRouter({
         triggerState:
           initialTriggerState,
 
-        // Price captured when trigger bot was created.
-        // For a bot without Trigger Line this remains null.
         triggerLastPrice:
           initialTriggerPrice,
 
@@ -778,8 +748,161 @@ module.exports = function createBotsRouter({
         triggerArmedPrice,
       };
 
+      // ======================================================
+      // TRADE LIFECYCLE CALLBACKS
+      // ======================================================
+
+      bot.onTradeProfit =
+        async (finalPnl) => {
+
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `TRADE CYCLE PROFIT | ` +
+            `P/L=${finalPnl} | RESET`
+          );
+
+          tradeLifecycle.stop(
+            bot.id
+          );
+
+          // --------------------------------------------------
+          // RESET TRADE STATE
+          // --------------------------------------------------
+
+          bot.currentPositionCount =
+            0;
+
+          bot.firstEntryPrice =
+            null;
+
+          bot.averageEntryPrice =
+            null;
+
+          bot.originalStopLoss =
+            null;
+
+          bot.currentTakeProfit =
+            null;
+
+          bot.currentTpOrderId =
+            null;
+
+          bot.trades =
+            [];
+
+          bot.status =
+            "ACTIVE";
+
+          // --------------------------------------------------
+          // RESTART ENTRY MODEL
+          //
+          // New trade cycle starts ONLY after
+          // previous cycle finished in PROFIT.
+          // --------------------------------------------------
+
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `PROFIT RESET COMPLETE | ` +
+            `RESTARTING ENTRY MODEL`
+          );
+
+          await entryModelEngine.startEngine(
+            bot
+          );
+
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `NEW TRADE CYCLE READY`
+          );
+        };
+
+      bot.onTradeLoss =
+        async (finalPnl) => {
+
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `TRADE CYCLE LOSS | ` +
+            `P/L=${finalPnl} | KILL`
+          );
+
+          tradeLifecycle.stop(
+            bot.id
+          );
+
+          bot.status =
+            "KILLED";
+
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `BOT KILLED`
+          );
+        };
+
+      bot.onTradeFlat =
+        async (finalPnl) => {
+
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `TRADE CYCLE ZERO | ` +
+            `P/L=${finalPnl} | RESET`
+          );
+
+          tradeLifecycle.stop(
+            bot.id
+          );
+
+          bot.currentPositionCount =
+            0;
+
+          bot.firstEntryPrice =
+            null;
+
+          bot.averageEntryPrice =
+            null;
+
+          bot.originalStopLoss =
+            null;
+
+          bot.currentTakeProfit =
+            null;
+
+          bot.currentTpOrderId =
+            null;
+
+          bot.trades =
+            [];
+
+          bot.status =
+            "ACTIVE";
+        };
+
       bots.push(
         bot
+      );
+
+      // ======================================================
+      // CREATE SERVER-SIDE TRADE CYCLE
+      // ======================================================
+
+      const cycle =
+        tradeCycleManager.create(
+          bot.id,
+          {
+            direction:
+              bot.direction,
+
+            position:
+              null,
+          }
+        );
+
+      bot.cycleId =
+        bot.id;
+
+      console.log(
+        `[Bot:${bot.symbol}] ` +
+        `Trade cycle created | ` +
+        `Cycle=${cycle.botId}`
       );
 
       // ======================================================
@@ -803,8 +926,6 @@ module.exports = function createBotsRouter({
 
       // ======================================================
       // START TRIGGER MONITOR
-      //
-      // Only Trigger Line bots in NEUTRAL need monitoring.
       // ======================================================
 
       if (
@@ -966,6 +1087,30 @@ module.exports = function createBotsRouter({
         );
 
       // ======================================================
+      // IMPORTANT
+      //
+      // REAL POSITION IS NOW OPEN.
+      //
+      // STOP ENTRY MODEL.
+      //
+      // This applies to:
+      // - Entry Model entry
+      // - Manual ENTER
+      //
+      // Pyramid #2 / #3 do NOT restart it.
+      // ======================================================
+
+      entryModelEngine.stopEngine(
+        bot.id
+      );
+
+      console.log(
+        `[Bot:${bot.symbol}] ` +
+        `POSITION OPENED | ` +
+        `Entry Model STOPPED`
+      );
+
+      // ======================================================
       // TRADE
       // ======================================================
 
@@ -997,6 +1142,22 @@ module.exports = function createBotsRouter({
 
       bot.currentPositionCount =
         tradeNumber;
+
+      // ======================================================
+      // START TRADE LIFECYCLE
+      //
+      // ONLY FIRST ENTRY.
+      //
+      // Pyramid #2 / #3 use the SAME lifecycle.
+      // ======================================================
+
+      if (isFirstEntry) {
+
+        tradeLifecycle.start(
+          bot
+        );
+
+      }
 
       // ======================================================
       // TP/SL 30 SECOND DELAY
@@ -1155,8 +1316,6 @@ module.exports = function createBotsRouter({
 
               // ==============================================
               // TP ORDER ID
-              //
-              // ALWAYS STRING
               // ==============================================
 
               if (
@@ -1349,35 +1508,28 @@ module.exports = function createBotsRouter({
       }
 
       // ------------------------------------------------------
-      // RESET POSITION STATE
+      // IMPORTANT
       //
-      // DO NOT RESET TRIGGER STATE.
+      // DO NOT RESET POSITION STATE HERE.
+      //
+      // TradeLifecycle must see:
+      //
+      // POSITION ACTIVE
+      //        ↓
+      // POSITION FLAT
+      //        ↓
+      // FINAL P/L
+      //        ↓
+      // RESET or KILL
+      //
+      // If we reset here, lifecycle loses the trade-cycle
+      // information before it can calculate the final P/L.
       // ------------------------------------------------------
-
-      bot.currentPositionCount =
-        0;
-
-      bot.firstEntryPrice =
-        null;
-
-      bot.averageEntryPrice =
-        null;
-
-      bot.originalStopLoss =
-        null;
-
-      bot.currentTakeProfit =
-        null;
-
-      bot.currentTpOrderId =
-        null;
-
-      bot.trades =
-        [];
 
       console.log(
         `[Bot:${bot.symbol}] ` +
-        `POSITION CLOSED | ` +
+        `CLOSE REQUEST SENT | ` +
+        `Lifecycle will finalize after FLAT | ` +
         `TriggerState=${bot.triggerState}`
       );
 
@@ -1481,13 +1633,6 @@ module.exports = function createBotsRouter({
     bot.status =
       "ACTIVE";
 
-    // --------------------------------------------------------
-    // Trigger remains whatever it was.
-    //
-    // NEUTRAL -> restart monitor
-    // ARMED   -> remain ARMED
-    // --------------------------------------------------------
-
     if (
       bot.triggerLineEnabled === true &&
       bot.triggerState === "NEUTRAL"
@@ -1509,6 +1654,204 @@ module.exports = function createBotsRouter({
     });
 
   });
+
+// ==========================================================
+// ENTRY MODEL START
+// ==========================================================
+
+router.post("/:id/entry-model/start", async (req, res) => {
+
+
+const bot =
+  bots.find(
+    (item) =>
+      item.id === req.params.id
+  );
+
+if (!bot) {
+
+  return res.status(404).json({
+    success: false,
+    error: "Bot not found",
+  });
+
+}
+
+// --------------------------------------------------------
+// BOT STATUS
+// --------------------------------------------------------
+
+if (
+  bot.status !== "ACTIVE"
+) {
+
+  return res.status(400).json({
+    success: false,
+    error:
+      `Cannot start Entry Model while bot status is ${bot.status}.`,
+  });
+
+}
+
+// --------------------------------------------------------
+// TRIGGER GATE
+// --------------------------------------------------------
+
+if (
+  bot.triggerLineEnabled === true &&
+  bot.triggerState !== "ARMED"
+) {
+
+  return res.status(400).json({
+    success: false,
+
+    error:
+      "Cannot start Entry Model — Bot is not ARMED.",
+
+    triggerState:
+      bot.triggerState,
+
+    triggerLinePrice:
+      bot.triggerLinePrice,
+  });
+
+}
+
+// --------------------------------------------------------
+// POSITION GATE
+// --------------------------------------------------------
+
+if (
+  bot.currentPositionCount > 0
+) {
+
+  return res.status(400).json({
+    success: false,
+
+    error:
+      "Cannot start Entry Model while a position is open.",
+
+    currentPositionCount:
+      bot.currentPositionCount,
+  });
+
+}
+
+try {
+
+  console.log(
+    `[Bot:${bot.symbol}] ` +
+    `MANUAL ENTRY MODEL START`
+  );
+
+  await entryModelEngine.startEngine(
+    bot
+  );
+
+  return res.json({
+
+    success:
+      true,
+
+    message:
+      "Entry Model started.",
+
+    bot,
+
+  });
+
+} catch (error) {
+
+  console.error(
+    `[Bot:${bot.symbol}] ` +
+    `ENTRY MODEL START ERROR:`,
+    error
+  );
+
+  return res.status(500).json({
+
+    success:
+      false,
+
+    error:
+      error.message,
+
+  });
+
+}
+
+
+});
+
+// ==========================================================
+// ENTRY MODEL STOP
+// ==========================================================
+
+router.post("/:id/entry-model/stop", (req, res) => {
+
+
+const bot =
+  bots.find(
+    (item) =>
+      item.id === req.params.id
+  );
+
+if (!bot) {
+
+  return res.status(404).json({
+    success: false,
+    error: "Bot not found",
+  });
+
+}
+
+try {
+
+  console.log(
+    `[Bot:${bot.symbol}] ` +
+    `MANUAL ENTRY MODEL STOP`
+  );
+
+  entryModelEngine.stopEngine(
+    bot.id
+  );
+
+  return res.json({
+
+    success:
+      true,
+
+    message:
+      "Entry Model stopped.",
+
+    bot,
+
+  });
+
+} catch (error) {
+
+  console.error(
+    `[Bot:${bot.symbol}] ` +
+    `ENTRY MODEL STOP ERROR:`,
+    error
+  );
+
+  return res.status(500).json({
+
+    success:
+      false,
+
+    error:
+      error.message,
+
+  });
+
+}
+
+
+});
+
+  
 
   // ==========================================================
   // DELETE
@@ -1567,6 +1910,22 @@ module.exports = function createBotsRouter({
     );
 
     // --------------------------------------------------------
+    // STOP TRADE LIFECYCLE
+    // --------------------------------------------------------
+
+    tradeLifecycle.stop(
+      bot.id
+    );
+
+    // --------------------------------------------------------
+    // STOP ENTRY MODEL
+    // --------------------------------------------------------
+
+    entryModelEngine.stopEngine(
+      bot.id
+    );
+
+    // --------------------------------------------------------
     // DELETE
     // --------------------------------------------------------
 
@@ -1593,10 +1952,6 @@ module.exports = function createBotsRouter({
 
   // ==========================================================
   // INTERNAL BOT ACCESS
-  //
-  // Entry Model backend can retrieve the REAL bot.
-  //
-  // React never supplies symbol/direction/trigger state.
   // ==========================================================
 
   router.getBot = (
@@ -1616,3 +1971,4 @@ module.exports = function createBotsRouter({
 
   return router;
 };
+
