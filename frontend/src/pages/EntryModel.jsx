@@ -21,6 +21,80 @@ getEntryModelEngine,
 import "./EntryModel.css";
 
 /* ============================================================
+HELPERS
+============================================================ */
+
+function normalizeDirection(value) {
+const direction =
+String(value || "").toUpperCase();
+
+if (direction === "LONG") {
+return "LONG";
+}
+
+if (direction === "SHORT") {
+return "SHORT";
+}
+
+return "NEUTRAL";
+}
+
+function normalizeTimestamp(value) {
+if (
+value === null ||
+value === undefined
+) {
+return null;
+}
+
+if (
+typeof value === "number"
+) {
+if (!Number.isFinite(value)) {
+return null;
+}
+
+
+return value > 100000000000
+  ? Math.floor(value / 1000)
+  : Math.floor(value);
+
+
+}
+
+const numeric =
+Number(value);
+
+if (
+Number.isFinite(numeric)
+) {
+return numeric > 100000000000
+? Math.floor(numeric / 1000)
+: Math.floor(numeric);
+}
+
+const parsed =
+Date.parse(String(value));
+
+if (
+!Number.isFinite(parsed)
+) {
+return null;
+}
+
+return Math.floor(parsed / 1000);
+}
+
+function getTimestampMs(value) {
+const timestamp =
+normalizeTimestamp(value);
+
+return Number.isFinite(timestamp)
+? timestamp * 1000
+: 0;
+}
+
+/* ============================================================
 COMPONENT
 ============================================================ */
 
@@ -55,7 +129,7 @@ setLoadingChart,
 ] = useState(false);
 
 /* ==========================================================
-SERVER ENTRY MODEL STATE
+SERVER ENGINE STATE
 ========================================================== */
 
 const [
@@ -115,56 +189,27 @@ SELECTED BOT
 ========================================================== */
 
 const selectedBot =
-useMemo(() => {
-
-
-  return bots.find(
-    (bot) =>
-      String(bot.id) ===
-      String(selectedBotId)
-  );
-
-}, [
-  bots,
-  selectedBotId,
-]);
-
-
-/*
-
-* IMPORTANT
-*
-* React does NOT calculate bot direction.
-*
-* Backend owns it.
-  */
+useMemo(
+() =>
+bots.find(
+(bot) =>
+String(bot.id) ===
+String(selectedBotId)
+),
+[
+bots,
+selectedBotId,
+]
+);
 
 const botDirection =
 selectedBot?.direction || "";
-
-/*
-
-* IMPORTANT
-*
-* React does NOT calculate trigger state.
-*
-* Backend owns it.
-  */
 
 const triggerState =
 selectedBot?.triggerState || "";
 
 const isArmed =
 triggerState === "ARMED";
-
-/*
-
-* IMPORTANT
-*
-* React does NOT control bot status.
-*
-* Backend owns it.
-  */
 
 const botStatus =
 selectedBot?.status || "";
@@ -203,31 +248,46 @@ engineState?.running
 );
 
 /* ==========================================================
+SORT PREVIOUS CYCLES
+
+
+ NEWEST FIRST.
+ 
+ Do not mutate the server array.
+ ========================================================== */
+
+
+
+const sortedPreviousCycles =
+  useMemo(
+    () =>
+      [...previousCycles].sort(
+        (a, b) =>
+          Number(b?.completedAt || 0) -
+          Number(a?.completedAt || 0)
+      ),
+    [previousCycles]
+  );
+
+
+
+/* ==========================================================
 LOAD BOTS
 ========================================================== */
 
 const loadBots =
 useCallback(
 async () => {
-
-
-    try {
-
-      setLoadingBots(
-        true
-      );
-
-      setError("");
+try {
+setLoadingBots(true);
+setError("");
 
 
       const response =
         await getBots();
 
-
       const list =
-        Array.isArray(
-          response
-        )
+        Array.isArray(response)
           ? response
           : Array.isArray(
               response?.bots
@@ -239,59 +299,36 @@ async () => {
           ? response.data
           : [];
 
+      setBots(list);
 
-      setBots(
-        list
-      );
-
-
-      if (
-        list.length > 0
-      ) {
-
+      if (list.length > 0) {
         setSelectedBotId(
           (current) => {
-
             if (
               current &&
               list.some(
                 (bot) =>
-                  String(
-                    bot.id
-                  ) ===
-                  String(
-                    current
-                  )
+                  String(bot.id) ===
+                  String(current)
               )
             ) {
-
               return current;
-
             }
-
 
             return String(
               list[0].id
             );
-
           }
         );
-
       } else {
-
-        setSelectedBotId(
-          ""
-        );
-
+        setSelectedBotId("");
       }
 
     } catch (err) {
-
       console.error(
         "[Entry Model] Bot load error:",
         err
       );
-
 
       setError(
         err?.message ||
@@ -299,13 +336,8 @@ async () => {
       );
 
     } finally {
-
-      setLoadingBots(
-        false
-      );
-
+      setLoadingBots(false);
     }
-
   },
   []
 );
@@ -316,26 +348,20 @@ INITIAL LOAD / CLEANUP
 ========================================================== */
 
 useEffect(() => {
-
-
 loadBots();
 
 
 return () => {
-
   if (
     chartRefreshTimerRef.current
   ) {
-
     clearInterval(
       chartRefreshTimerRef.current
     );
 
     chartRefreshTimerRef.current =
       null;
-
   }
-
 };
 
 
@@ -352,33 +378,19 @@ useCallback(
 async (
 showLoading = true
 ) => {
-
-
-    const symbol =
-      selectedBot?.symbol;
+const symbol =
+selectedBot?.symbol;
 
 
     if (!symbol) {
-
       setChartData([]);
-
       return;
-
     }
 
-
     try {
-
-      if (
-        showLoading
-      ) {
-
-        setLoadingChart(
-          true
-        );
-
+      if (showLoading) {
+        setLoadingChart(true);
       }
-
 
       const response =
         await getChart(
@@ -386,11 +398,8 @@ showLoading = true
           "15m"
         );
 
-
       const rawData =
-        Array.isArray(
-          response
-        )
+        Array.isArray(response)
           ? response
           : Array.isArray(
               response?.data
@@ -406,273 +415,12 @@ showLoading = true
           ? response.klines
           : [];
 
-
-      /*
-       * Chart conversion only.
-       *
-       * NO Entry Model calculations.
-       */
-
       const normalized =
         rawData
-          .map(
-            (candle) => {
-
-              if (!candle) {
-                return null;
-              }
-
-
-              let time;
-              let open;
-              let high;
-              let low;
-              let close;
-
-
-              if (
-                Array.isArray(
-                  candle
-                )
-              ) {
-
-                time =
-                  Number(
-                    candle[0]
-                  );
-
-                open =
-                  Number(
-                    candle[1]
-                  );
-
-                high =
-                  Number(
-                    candle[2]
-                  );
-
-                low =
-                  Number(
-                    candle[3]
-                  );
-
-                close =
-                  Number(
-                    candle[4]
-                  );
-
-              } else {
-
-                time =
-                  Number(
-                    candle.time ??
-                    candle.timestamp ??
-                    candle.ts ??
-                    candle.openTime
-                  );
-
-                open =
-                  Number(
-                    candle.open
-                  );
-
-                high =
-                  Number(
-                    candle.high
-                  );
-
-                low =
-                  Number(
-                    candle.low
-                  );
-
-                close =
-                  Number(
-                    candle.close
-                  );
-
-              }
-
-
-              if (
-                !Number.isFinite(
-                  time
-                ) ||
-                !Number.isFinite(
-                  open
-                ) ||
-                !Number.isFinite(
-                  high
-                ) ||
-                !Number.isFinite(
-                  low
-                ) ||
-                !Number.isFinite(
-                  close
-                )
-              ) {
-
-                return null;
-
-              }
-
-
-              if (
-                time >
-                100000000000
-              ) {
-
-                time =
-                  Math.floor(
-                    time / 1000
-                  );
-
-              }
-
-
-              return {
-                time,
-                open,
-                high,
-                low,
-                close,
-              };
-
-            }
-          )
-          .filter(
-            Boolean
-          )
-          .sort(
-            (a, b) =>
-              a.time -
-              b.time
-          );
-
-
-      setChartData(
-        normalized
-      );
-
-
-      console.log(
-        `[Entry Model] Chart refreshed | ${symbol} | candles=${normalized.length}`
-      );
-
-    } catch (err) {
-
-      console.error(
-        "[Entry Model] Chart load error:",
-        err
-      );
-
-
-      setError(
-        err?.message ||
-        "Failed to load chart."
-      );
-
-    } finally {
-
-      if (
-        showLoading
-      ) {
-
-        setLoadingChart(
-          false
-        );
-
-      }
-
-    }
-
-  },
-  [
-    selectedBot?.symbol,
-  ]
-);
-
-
-/* ==========================================================
-INITIAL CHART DATA LOAD
-========================================================== */
-
-useEffect(() => {
-
-
-let cancelled =
-  false;
-
-
-async function initialLoad() {
-
-  const symbol =
-    selectedBot?.symbol;
-
-
-  if (!symbol) {
-
-    setChartData([]);
-
-    return;
-
-  }
-
-
-  try {
-
-    setLoadingChart(
-      true
-    );
-
-    setError("");
-
-
-    const response =
-      await getChart(
-        symbol,
-        "15m"
-      );
-
-
-    if (
-      cancelled
-    ) {
-
-      return;
-
-    }
-
-
-    const rawData =
-      Array.isArray(
-        response
-      )
-        ? response
-        : Array.isArray(
-            response?.data
-          )
-        ? response.data
-        : Array.isArray(
-            response?.candles
-          )
-        ? response.candles
-        : Array.isArray(
-            response?.klines
-          )
-        ? response.klines
-        : [];
-
-
-    const normalized =
-      rawData
-        .map(
-          (candle) => {
-
+          .map((candle) => {
             if (!candle) {
               return null;
             }
-
 
             let time;
             let open;
@@ -680,13 +428,11 @@ async function initialLoad() {
             let low;
             let close;
 
-
             if (
               Array.isArray(
                 candle
               )
             ) {
-
               time =
                 Number(
                   candle[0]
@@ -713,7 +459,6 @@ async function initialLoad() {
                 );
 
             } else {
-
               time =
                 Number(
                   candle.time ??
@@ -741,45 +486,27 @@ async function initialLoad() {
                 Number(
                   candle.close
                 );
-
             }
-
 
             if (
-              !Number.isFinite(
-                time
-              ) ||
-              !Number.isFinite(
-                open
-              ) ||
-              !Number.isFinite(
-                high
-              ) ||
-              !Number.isFinite(
-                low
-              ) ||
-              !Number.isFinite(
-                close
-              )
+              !Number.isFinite(time) ||
+              !Number.isFinite(open) ||
+              !Number.isFinite(high) ||
+              !Number.isFinite(low) ||
+              !Number.isFinite(close)
             ) {
-
               return null;
-
             }
-
 
             if (
               time >
               100000000000
             ) {
-
               time =
                 Math.floor(
                   time / 1000
                 );
-
             }
-
 
             return {
               time,
@@ -788,47 +515,219 @@ async function initialLoad() {
               low,
               close,
             };
+          })
+          .filter(Boolean)
+          .sort(
+            (a, b) =>
+              a.time -
+              b.time
+          );
 
+      setChartData(
+        normalized
+      );
+
+      console.log(
+        `[Entry Model] Chart refreshed | ${symbol} | candles=${normalized.length}`
+      );
+
+    } catch (err) {
+      console.error(
+        "[Entry Model] Chart load error:",
+        err
+      );
+
+      setError(
+        err?.message ||
+        "Failed to load chart."
+      );
+
+    } finally {
+      if (showLoading) {
+        setLoadingChart(false);
+      }
+    }
+  },
+  [
+    selectedBot?.symbol,
+  ]
+);
+
+
+/* ==========================================================
+INITIAL CHART LOAD
+========================================================== */
+
+useEffect(() => {
+let cancelled = false;
+
+
+async function initialLoad() {
+  const symbol =
+    selectedBot?.symbol;
+
+  if (!symbol) {
+    setChartData([]);
+    return;
+  }
+
+  try {
+    setLoadingChart(true);
+    setError("");
+
+    const response =
+      await getChart(
+        symbol,
+        "15m"
+      );
+
+    if (cancelled) {
+      return;
+    }
+
+    const rawData =
+      Array.isArray(response)
+        ? response
+        : Array.isArray(
+            response?.data
+          )
+        ? response.data
+        : Array.isArray(
+            response?.candles
+          )
+        ? response.candles
+        : Array.isArray(
+            response?.klines
+          )
+        ? response.klines
+        : [];
+
+    const normalized =
+      rawData
+        .map((candle) => {
+          if (!candle) {
+            return null;
           }
-        )
-        .filter(
-          Boolean
-        )
+
+          let time;
+          let open;
+          let high;
+          let low;
+          let close;
+
+          if (
+            Array.isArray(
+              candle
+            )
+          ) {
+            time =
+              Number(
+                candle[0]
+              );
+
+            open =
+              Number(
+                candle[1]
+              );
+
+            high =
+              Number(
+                candle[2]
+              );
+
+            low =
+              Number(
+                candle[3]
+              );
+
+            close =
+              Number(
+                candle[4]
+              );
+          } else {
+            time =
+              Number(
+                candle.time ??
+                candle.timestamp ??
+                candle.ts ??
+                candle.openTime
+              );
+
+            open =
+              Number(
+                candle.open
+              );
+
+            high =
+              Number(
+                candle.high
+              );
+
+            low =
+              Number(
+                candle.low
+              );
+
+            close =
+              Number(
+                candle.close
+              );
+          }
+
+          if (
+            !Number.isFinite(time) ||
+            !Number.isFinite(open) ||
+            !Number.isFinite(high) ||
+            !Number.isFinite(low) ||
+            !Number.isFinite(close)
+          ) {
+            return null;
+          }
+
+          if (
+            time >
+            100000000000
+          ) {
+            time =
+              Math.floor(
+                time / 1000
+              );
+          }
+
+          return {
+            time,
+            open,
+            high,
+            low,
+            close,
+          };
+        })
+        .filter(Boolean)
         .sort(
           (a, b) =>
             a.time -
             b.time
         );
 
-
     setChartData(
       normalized
     );
-
 
     console.log(
       `[Entry Model] Initial chart load | ${symbol} | candles=${normalized.length}`
     );
 
   } catch (err) {
-
-    if (
-      cancelled
-    ) {
-
+    if (cancelled) {
       return;
-
     }
-
 
     console.error(
       "[Entry Model] Chart load error:",
       err
     );
 
-
     setChartData([]);
-
 
     setError(
       err?.message ||
@@ -836,30 +735,16 @@ async function initialLoad() {
     );
 
   } finally {
-
-    if (
-      !cancelled
-    ) {
-
-      setLoadingChart(
-        false
-      );
-
+    if (!cancelled) {
+      setLoadingChart(false);
     }
-
   }
-
 }
-
 
 initialLoad();
 
-
 return () => {
-
-  cancelled =
-    true;
-
+  cancelled = true;
 };
 
 
@@ -872,59 +757,43 @@ ONE-MINUTE CHART REFRESH
 ========================================================== */
 
 useEffect(() => {
-
-
 if (
-  chartRefreshTimerRef.current
+chartRefreshTimerRef.current
 ) {
+clearInterval(
+chartRefreshTimerRef.current
+);
 
-  clearInterval(
-    chartRefreshTimerRef.current
-  );
 
   chartRefreshTimerRef.current =
     null;
-
 }
-
 
 if (
   !selectedBot?.symbol
 ) {
-
   return;
-
 }
-
 
 chartRefreshTimerRef.current =
   setInterval(
     () => {
-
-      loadChartData(
-        false
-      );
-
+      loadChartData(false);
     },
     60 * 1000
   );
 
-
 return () => {
-
   if (
     chartRefreshTimerRef.current
   ) {
-
     clearInterval(
       chartRefreshTimerRef.current
     );
 
     chartRefreshTimerRef.current =
       null;
-
   }
-
 };
 
 
@@ -938,48 +807,33 @@ CREATE CHART
 ========================================================== */
 
 useEffect(() => {
-
-
 const container =
-  chartContainerRef.current;
+chartContainerRef.current;
 
 
 if (!container) {
-
   console.log(
     "[Entry Model] Chart container not ready"
   );
 
   return;
-
 }
-
 
 if (
   !selectedBot?.symbol
 ) {
-
   return;
-
 }
 
-
-if (
-  chartRef.current
-) {
-
+if (chartRef.current) {
   return;
-
 }
-
 
 chartGenerationRef.current +=
   1;
 
-
 const generation =
   chartGenerationRef.current;
-
 
 const chart =
   createChart(
@@ -992,7 +846,6 @@ const chart =
         600,
 
       layout: {
-
         background: {
           color:
             "#0d1728",
@@ -1000,11 +853,9 @@ const chart =
 
         textColor:
           "#94a3b8",
-
       },
 
       grid: {
-
         vertLines: {
           color:
             "#17263d",
@@ -1014,18 +865,14 @@ const chart =
           color:
             "#17263d",
         },
-
       },
 
       rightPriceScale: {
-
         borderColor:
           "#294467",
-
       },
 
       timeScale: {
-
         borderColor:
           "#294467",
 
@@ -1034,11 +881,9 @@ const chart =
 
         secondsVisible:
           false,
-
       },
 
       crosshair: {
-
         vertLine: {
           color:
             "#294467",
@@ -1048,18 +893,14 @@ const chart =
           color:
             "#294467",
         },
-
       },
-
     }
   );
-
 
 const candleSeries =
   chart.addSeries(
     CandlestickSeries,
     {
-
       upColor:
         "#22c55e",
 
@@ -1077,17 +918,14 @@ const candleSeries =
 
       wickDownColor:
         "#ef4444",
-
     }
   );
-
 
 const markerController =
   createSeriesMarkers(
     candleSeries,
     []
   );
-
 
 chartRef.current =
   chart;
@@ -1104,65 +942,42 @@ chartMountedRef.current =
 chartHasFittedRef.current =
   false;
 
-
 console.log(
   `[Entry Model] Chart created | ${selectedBot.symbol} | generation=${generation}`
 );
 
-
-/* --------------------------------------------------------
-   RESIZE
-   -------------------------------------------------------- */
-
 const handleResize =
   () => {
-
     if (
       !chartMountedRef.current ||
       !chartContainerRef.current
     ) {
-
       return;
-
     }
 
-
     try {
-
       chart.applyOptions({
         width:
           chartContainerRef.current
             .clientWidth,
       });
-
     } catch (error) {
-
       console.warn(
         "[Entry Model] Chart resize failed:",
         error
       );
-
     }
-
   };
-
 
 window.addEventListener(
   "resize",
   handleResize
 );
 
-
-/* --------------------------------------------------------
-   CLEANUP
-   -------------------------------------------------------- */
-
 return () => {
-
   console.log(
     `[Entry Model] Destroying chart | generation=${generation}`
   );
-
 
   chartMountedRef.current =
     false;
@@ -1170,26 +985,19 @@ return () => {
   chartGenerationRef.current +=
     1;
 
-
   window.removeEventListener(
     "resize",
     handleResize
   );
 
-
   try {
-
     chart.remove();
-
   } catch (error) {
-
     console.warn(
       "[Entry Model] Chart cleanup failed:",
       error
     );
-
   }
-
 
   chartRef.current =
     null;
@@ -1199,7 +1007,6 @@ return () => {
 
   markersRef.current =
     null;
-
 };
 
 
@@ -1212,45 +1019,32 @@ UPDATE CANDLE DATA
 ========================================================== */
 
 useEffect(() => {
-
-
 if (
-  !chartMountedRef.current ||
-  !candleSeriesRef.current
+!chartMountedRef.current ||
+!candleSeriesRef.current
 ) {
-
-  return;
-
+return;
 }
 
 
-if (
-  !chartData.length
-) {
-
+if (!chartData.length) {
   return;
-
 }
-
 
 try {
-
   candleSeriesRef.current.setData(
     chartData
   );
-
 
   console.log(
     `[Entry Model] Candles rendered | ${chartData.length}`
   );
 
 } catch (error) {
-
   console.error(
     "[Entry Model] Candle setData error:",
     error
   );
-
 }
 
 
@@ -1263,45 +1057,34 @@ FIT CHART
 ========================================================== */
 
 useEffect(() => {
-
-
 if (
-  !chartMountedRef.current ||
-  !chartRef.current ||
-  !chartData.length
+!chartMountedRef.current ||
+!chartRef.current ||
+!chartData.length
 ) {
-
-  return;
-
+return;
 }
 
 
 if (
   chartHasFittedRef.current
 ) {
-
   return;
-
 }
 
-
 try {
-
   chartRef.current
     .timeScale()
     .fitContent();
-
 
   chartHasFittedRef.current =
     true;
 
 } catch (error) {
-
   console.warn(
     "[Entry Model] Chart fit failed:",
     error
   );
-
 }
 
 
@@ -1312,182 +1095,138 @@ chartData,
 /* ==========================================================
 FINAL SIGNAL MARKERS
 
+SERVER DATA ONLY.
 
- SERVER ONLY.
- 
- React does NOT calculate signals.
- ========================================================== */
+LONG / SHORT comes directly from:
+cycle.decision
 
+TIME comes directly from:
+cycle.completedAt
+
+NEUTRAL cycles get no marker.
+========================================================== */
 
 useEffect(() => {
-
-
-if (
-  !chartMountedRef.current ||
-  !candleSeriesRef.current ||
-  !markersRef.current ||
-  !chartData.length
-) {
-
-  return;
-
-}
-
-
-const markers = [];
-
-
-for (
-  const cycle of previousCycles
-) {
-
-  const decision =
-    String(
-      cycle?.decision || ""
-    ).toUpperCase();
-
-
   if (
-    decision !== "LONG" &&
-    decision !== "SHORT"
+    !chartMountedRef.current ||
+    !candleSeriesRef.current ||
+    !markersRef.current ||
+    !chartData.length
   ) {
-
-    continue;
-
+    return;
   }
 
+  const markers = [];
 
-  const rawTime =
-    cycle?.timestamp;
+  for (const cycle of previousCycles) {
+    const decision =
+      String(
+        cycle?.decision || ""
+      ).toUpperCase();
 
-
-  if (
-    rawTime === null ||
-    rawTime === undefined
-  ) {
-
-    continue;
-
-  }
-
-
-  const cycleTime =
-    typeof rawTime === "number"
-      ? rawTime > 100000000000
-        ? Math.floor(
-            rawTime / 1000
-          )
-        : Math.floor(
-            rawTime
-          )
-      : Math.floor(
-          Date.parse(
-            rawTime
-          ) / 1000
-        );
-
-
-  if (
-    !Number.isFinite(
-      cycleTime
-    )
-  ) {
-
-    continue;
-
-  }
-
-
-  let nearestCandle =
-    chartData[0];
-
-  let nearestDistance =
-    Math.abs(
-      chartData[0].time -
-        cycleTime
-    );
-
-
-  for (
-    const candle of chartData
-  ) {
-
-    const distance =
-      Math.abs(
-        candle.time -
-          cycleTime
-      );
-
-
+    // Only show real LONG / SHORT signals.
     if (
-      distance <
-      nearestDistance
+      decision !== "LONG" &&
+      decision !== "SHORT"
     ) {
-
-      nearestDistance =
-        distance;
-
-      nearestCandle =
-        candle;
-
+      continue;
     }
 
+    // Server sends completedAt as Unix milliseconds.
+    const cycleTime =
+      normalizeTimestamp(
+        cycle?.completedAt
+      );
+
+    if (
+      !Number.isFinite(
+        cycleTime
+      )
+    ) {
+      continue;
+    }
+
+    // Find the candle closest to the completed cycle time.
+    let nearestCandle =
+      chartData[0];
+
+    let nearestDistance =
+      Math.abs(
+        chartData[0].time -
+        cycleTime
+      );
+
+    for (const candle of chartData) {
+      const distance =
+        Math.abs(
+          candle.time -
+          cycleTime
+        );
+
+      if (
+        distance <
+        nearestDistance
+      ) {
+        nearestDistance =
+          distance;
+
+        nearestCandle =
+          candle;
+      }
+    }
+
+    markers.push({
+      time:
+        nearestCandle.time,
+
+      position:
+        decision === "LONG"
+          ? "belowBar"
+          : "aboveBar",
+
+      color:
+        decision === "LONG"
+          ? "#22c55e"
+          : "#ef4444",
+
+      shape:
+        decision === "LONG"
+          ? "arrowUp"
+          : "arrowDown",
+
+      text:
+        decision,
+    });
   }
 
+  // Oldest → newest for Lightweight Charts.
+  markers.sort(
+    (a, b) =>
+      a.time -
+      b.time
+  );
 
-  markers.push({
-
-    time:
-      nearestCandle.time,
-
-    position:
-      decision === "LONG"
-        ? "belowBar"
-        : "aboveBar",
-
-    color:
-      decision === "LONG"
-        ? "#22c55e"
-        : "#ef4444",
-
-    shape:
-      "circle",
-
-    text:
-      decision,
-
-  });
-
-}
-
-
-markers.sort(
-  (a, b) =>
-    a.time -
-    b.time
-);
-
-
-try {
-
-  markersRef.current.setMarkers(
+  console.log(
+    "[Entry Model] Signal markers:",
     markers
   );
 
-} catch (error) {
-
-  console.warn(
-    "[Entry Model] Marker update failed:",
-    error
-  );
-
-}
-
+  try {
+    markersRef.current.setMarkers(
+      markers
+    );
+  } catch (error) {
+    console.warn(
+      "[Entry Model] Marker update failed:",
+      error
+    );
+  }
 
 }, [
-previousCycles,
-chartData,
+  previousCycles,
+  chartData,
 ]);
+
 
 /* ==========================================================
 SERVER ENTRY MODEL ENGINE
@@ -1510,52 +1249,28 @@ SERVER ENTRY MODEL ENGINE
 
 
 useEffect(() => {
-
-
 if (!selectedBot) {
-
-  setEngineState(
-    null
-  );
-
-  return;
-
+setEngineState(null);
+return;
 }
 
 
-let cancelled =
-  false;
-
+let cancelled = false;
 
 async function loadEngineState() {
-
   try {
-
     const status =
       await getEntryModelEngine(
         selectedBot.id
       );
 
-
-    if (
-      cancelled
-    ) {
-
+    if (cancelled) {
       return;
-
     }
-
-
-    /*
-     * SERVER IS THE SOURCE OF TRUTH.
-     *
-     * Store exactly what backend returns.
-     */
 
     setEngineState(
       status
     );
-
 
     console.log(
       "[Entry Model] SERVER STATE:",
@@ -1563,15 +1278,9 @@ async function loadEngineState() {
     );
 
   } catch (err) {
-
-    if (
-      cancelled
-    ) {
-
+    if (cancelled) {
       return;
-
     }
-
 
     console.error(
       "[Entry Model] Engine status error:",
@@ -1582,24 +1291,10 @@ async function loadEngineState() {
       err?.message ||
       "Failed to load Entry Model engine."
     );
-
   }
-
 }
 
-
-/*
- * Initial server state.
- */
-
 loadEngineState();
-
-
-/*
- * React only watches the backend.
- *
- * 3 second display refresh.
- */
 
 const timer =
   setInterval(
@@ -1607,16 +1302,12 @@ const timer =
     3000
   );
 
-
 return () => {
-
-  cancelled =
-    true;
+  cancelled = true;
 
   clearInterval(
     timer
   );
-
 };
 
 
@@ -1630,22 +1321,13 @@ BOT CHANGE
 
 const handleBotChange =
 (event) => {
-
-
-  const value =
-    event.target.value;
+const value =
+event.target.value;
 
 
   setSelectedBotId(
     value
   );
-
-
-  /*
-   * Display only.
-   *
-   * This does NOT reset backend state.
-   */
 
   setEngineState(
     null
@@ -1654,7 +1336,6 @@ const handleBotChange =
   setError("");
 
   setSuccess("");
-
 };
 
 
@@ -1665,9 +1346,9 @@ RENDER
 return ( <div className="entry-model-page">
 
 
-  {/* ======================================================
+  {/* ====================================================
       HEADER
-      ====================================================== */}
+      ==================================================== */}
 
   <div className="entry-model-header">
 
@@ -1677,12 +1358,9 @@ return ( <div className="entry-model-page">
         Entry Model
       </h1>
 
-
       {selectedBot && (
         <div className="entry-model-symbol">
-
           {selectedBot.symbol}
-
         </div>
       )}
 
@@ -1694,7 +1372,6 @@ return ( <div className="entry-model-page">
       <label>
         BOT
       </label>
-
 
       <select
         value={
@@ -1712,10 +1389,8 @@ return ( <div className="entry-model-page">
           Select Bot
         </option>
 
-
         {bots.map(
           (bot) => (
-
             <option
               key={
                 bot.id
@@ -1724,21 +1399,14 @@ return ( <div className="entry-model-page">
                 bot.id
               }
             >
-
               {bot.name ||
                 bot.id ||
                 bot.symbol}
-
               {" | "}
-
               {bot.symbol}
-
               {" | "}
-
               {bot.direction}
-
             </option>
-
           )
         )}
 
@@ -1749,35 +1417,31 @@ return ( <div className="entry-model-page">
   </div>
 
 
-  {/* ======================================================
+  {/* ====================================================
       ERROR
-      ====================================================== */}
+      ==================================================== */}
 
   {error && (
     <div className="entry-model-error">
-
       {error}
-
     </div>
   )}
 
 
-  {/* ======================================================
+  {/* ====================================================
       SUCCESS
-      ====================================================== */}
+      ==================================================== */}
 
   {success && (
     <div className="entry-model-success">
-
       {success}
-
     </div>
   )}
 
 
-  {/* ======================================================
+  {/* ====================================================
       STATUS
-      ====================================================== */}
+      ==================================================== */}
 
   <div className="entry-model-status">
 
@@ -1787,12 +1451,9 @@ return ( <div className="entry-model-page">
         Bot:
       </span>
 
-
       <span className="entry-model-status-value">
-
         {selectedBot?.symbol ||
           "NONE"}
-
       </span>
 
 
@@ -1800,19 +1461,15 @@ return ( <div className="entry-model-page">
         Direction:
       </span>
 
-
       <span className="entry-model-status-value">
-
         {selectedBot?.direction ||
           "NONE"}
-
       </span>
 
 
       <span className="entry-model-status-label">
         Trigger:
       </span>
-
 
       <span
         className={`entry-model-status-value ${
@@ -1821,11 +1478,9 @@ return ( <div className="entry-model-page">
             : "neutral"
         }`}
       >
-
         {selectedBot
           ? triggerState
           : "NONE"}
-
       </span>
 
 
@@ -1833,12 +1488,9 @@ return ( <div className="entry-model-page">
         Bot Status:
       </span>
 
-
       <span className="entry-model-status-value">
-
         {botStatus ||
           "NONE"}
-
       </span>
 
 
@@ -1846,13 +1498,10 @@ return ( <div className="entry-model-page">
         Engine:
       </span>
 
-
       <span className="entry-model-status-value">
-
         {running
           ? "RUNNING"
           : "STOPPED"}
-
       </span>
 
     </div>
@@ -1860,9 +1509,9 @@ return ( <div className="entry-model-page">
   </div>
 
 
-  {/* ======================================================
+  {/* ====================================================
       SCAN INFO
-      ====================================================== */}
+      ==================================================== */}
 
   <div className="entry-model-scan-info">
 
@@ -1872,11 +1521,8 @@ return ( <div className="entry-model-page">
         Current Cycle
       </span>
 
-
       <span className="entry-model-scan-count">
-
-        {scanCount} / 3
-
+        {scanCount} / 10
       </span>
 
     </div>
@@ -1895,9 +1541,9 @@ return ( <div className="entry-model-page">
   </div>
 
 
-  {/* ======================================================
+  {/* ====================================================
       CHART
-      ====================================================== */}
+      ==================================================== */}
 
   <div className="entry-model-chart-card">
 
@@ -1938,21 +1584,17 @@ return ( <div className="entry-model-page">
 
     {!chartData.length &&
       !loadingChart && (
-
         <div className="entry-model-chart-empty">
-
           No chart data available
-
         </div>
-
       )}
 
   </div>
 
 
-  {/* ======================================================
+  {/* ====================================================
       CURRENT CYCLE
-      ====================================================== */}
+      ==================================================== */}
 
   <div className="entry-model-table-card">
 
@@ -1962,11 +1604,8 @@ return ( <div className="entry-model-page">
         CURRENT CYCLE
       </h2>
 
-
       <span className="entry-model-cycle-count">
-
-        {scanCount} / 3
-
+        {scanCount} / 10
       </span>
 
     </div>
@@ -2090,18 +1729,25 @@ return ( <div className="entry-model-page">
                     </span>
 
 
-                    {scan?.percentage15 !== null &&
-                      scan?.percentage15 !== undefined && (
+                    {scan?.percentage15 !==
+                      null &&
+                      scan?.percentage15 !==
+                        undefined && (
 
                         <small
                           style={{
-                            marginLeft: "5px",
-                            opacity: 0.7,
-                            fontSize: "11px",
+                            marginLeft:
+                              "5px",
+                            opacity:
+                              0.7,
+                            fontSize:
+                              "11px",
                           }}
                         >
 
-                          {scan.percentage15}%
+                          {
+                            scan.percentage15
+                          }%
 
                         </small>
 
@@ -2129,18 +1775,25 @@ return ( <div className="entry-model-page">
                     </span>
 
 
-                    {scan?.percentage20 !== null &&
-                      scan?.percentage20 !== undefined && (
+                    {scan?.percentage20 !==
+                      null &&
+                      scan?.percentage20 !==
+                        undefined && (
 
                         <small
                           style={{
-                            marginLeft: "5px",
-                            opacity: 0.7,
-                            fontSize: "11px",
+                            marginLeft:
+                              "5px",
+                            opacity:
+                              0.7,
+                            fontSize:
+                              "11px",
                           }}
                         >
 
-                          {scan.percentage20}%
+                          {
+                            scan.percentage20
+                          }%
 
                         </small>
 
@@ -2168,18 +1821,25 @@ return ( <div className="entry-model-page">
                     </span>
 
 
-                    {scan?.percentage30 !== null &&
-                      scan?.percentage30 !== undefined && (
+                    {scan?.percentage30 !==
+                      null &&
+                      scan?.percentage30 !==
+                        undefined && (
 
                         <small
                           style={{
-                            marginLeft: "5px",
-                            opacity: 0.7,
-                            fontSize: "11px",
+                            marginLeft:
+                              "5px",
+                            opacity:
+                              0.7,
+                            fontSize:
+                              "11px",
                           }}
                         >
 
-                          {scan.percentage30}%
+                          {
+                            scan.percentage30
+                          }%
 
                         </small>
 
@@ -2207,18 +1867,25 @@ return ( <div className="entry-model-page">
                     </span>
 
 
-                    {scan?.percentage60 !== null &&
-                      scan?.percentage60 !== undefined && (
+                    {scan?.percentage60 !==
+                      null &&
+                      scan?.percentage60 !==
+                        undefined && (
 
                         <small
                           style={{
-                            marginLeft: "5px",
-                            opacity: 0.7,
-                            fontSize: "11px",
+                            marginLeft:
+                              "5px",
+                            opacity:
+                              0.7,
+                            fontSize:
+                              "11px",
                           }}
                         >
 
-                          {scan.percentage60}%
+                          {
+                            scan.percentage60
+                          }%
 
                         </small>
 
@@ -2263,9 +1930,9 @@ return ( <div className="entry-model-page">
   </div>
 
 
-  {/* ======================================================
+  {/* ====================================================
       PREVIOUS CYCLES
-      ====================================================== */}
+      ==================================================== */}
 
   <div className="entry-model-table-card">
 
@@ -2275,11 +1942,8 @@ return ( <div className="entry-model-page">
         PREVIOUS CYCLES
       </h2>
 
-
       <span className="entry-model-cycle-count">
-
         {previousCycles.length} completed
-
       </span>
 
     </div>
@@ -2340,7 +2004,7 @@ return ( <div className="entry-model-page">
 
         <tbody>
 
-          {previousCycles.length === 0 ? (
+          {sortedPreviousCycles.length === 0 ? (
 
             <tr>
 
@@ -2354,7 +2018,7 @@ return ( <div className="entry-model-page">
                 <br />
 
                 The current cycle will move
-                here after 3 scans.
+                here after 10 scans.
 
               </td>
 
@@ -2362,7 +2026,7 @@ return ( <div className="entry-model-page">
 
           ) : (
 
-            previousCycles.map(
+            sortedPreviousCycles.map(
               (
                 cycle,
                 index
@@ -2376,16 +2040,20 @@ return ( <div className="entry-model-page">
                   }
                 >
 
+                  {/* TIME */}
+
                   <td>
 
-                    {cycle?.timestamp
-                      ? new Date(
-                          cycle.timestamp
-                        ).toLocaleTimeString()
-                      : "--:--:--"}
+                   {cycle?.completedAt
+                    ? new Date(
+                        cycle.completedAt
+                      ).toLocaleTimeString()
+                    : "--:--:--"}
 
                   </td>
 
+
+                  {/* COIN */}
 
                   <td>
 
@@ -2394,6 +2062,8 @@ return ( <div className="entry-model-page">
 
                   </td>
 
+
+                  {/* BOT */}
 
                   <td>
 
@@ -2414,6 +2084,8 @@ return ( <div className="entry-model-page">
                   </td>
 
 
+                  {/* TREND 15 */}
+
                   <td>
 
                     <span
@@ -2432,6 +2104,8 @@ return ( <div className="entry-model-page">
 
                   </td>
 
+
+                  {/* TREND 20 */}
 
                   <td>
 
@@ -2452,6 +2126,8 @@ return ( <div className="entry-model-page">
                   </td>
 
 
+                  {/* TREND 30 */}
+
                   <td>
 
                     <span
@@ -2470,6 +2146,8 @@ return ( <div className="entry-model-page">
 
                   </td>
 
+
+                  {/* TREND 60 */}
 
                   <td>
 
@@ -2490,6 +2168,8 @@ return ( <div className="entry-model-page">
                   </td>
 
 
+                  {/* VOTES */}
+
                   <td>
 
                     <span
@@ -2502,7 +2182,8 @@ return ( <div className="entry-model-page">
                       }`}
                     >
 
-                      {cycle?.votes ?? 0}
+                      {cycle?.votes ??
+                        0}
 
                       {" / 10"}
 
@@ -2511,6 +2192,8 @@ return ( <div className="entry-model-page">
                   </td>
 
 
+                  {/* SCANS */}
+
                   <td>
 
                     {cycle?.totalScans ??
@@ -2518,6 +2201,8 @@ return ( <div className="entry-model-page">
 
                   </td>
 
+
+                  {/* DECISION */}
 
                   <td>
 
