@@ -755,126 +755,126 @@ module.exports = function createBotsRouter({
       bot.onTradeProfit =
         async (finalPnl) => {
 
-          console.log(
-            `[Bot:${bot.symbol}] ` +
-            `TRADE CYCLE PROFIT | ` +
-            `P/L=${finalPnl} | RESET`
-          );
+        console.log(
+          `[Bot:${bot.symbol}] ` +
+          `TRADE CYCLE PROFIT | ` +
+          `P/L=${finalPnl} | RESET`
+        );
 
-          tradeLifecycle.stop(
-            bot.id
-          );
+        tradeLifecycle.stop(
+          bot.id
+        );
 
-          // --------------------------------------------------
-          // RESET TRADE STATE
-          // --------------------------------------------------
+        // --------------------------------------------------
+        // RESET TRADE STATE
+        // --------------------------------------------------
 
-          bot.currentPositionCount =
-            0;
+        bot.currentPositionCount =
+          0;
 
-          bot.firstEntryPrice =
-            null;
+        bot.firstEntryPrice =
+          null;
 
-          bot.averageEntryPrice =
-            null;
+        bot.averageEntryPrice =
+          null;
 
-          bot.originalStopLoss =
-            null;
+        bot.originalStopLoss =
+          null;
 
-          bot.currentTakeProfit =
-            null;
+        bot.currentTakeProfit =
+          null;
 
-          bot.currentTpOrderId =
-            null;
+        bot.currentTpOrderId =
+          null;
 
-          bot.trades =
-            [];
+        bot.trades =
+          [];
 
-          bot.status =
-            "ACTIVE";
+        bot.status =
+          "ACTIVE";
 
-          // --------------------------------------------------
-          // RESTART ENTRY MODEL
-          //
-          // New trade cycle starts ONLY after
-          // previous cycle finished in PROFIT.
-          // --------------------------------------------------
+        // --------------------------------------------------
+        // RESTART ENTRY MODEL
+        //
+        // New trade cycle starts ONLY after
+        // previous cycle finished in PROFIT.
+        // --------------------------------------------------
 
-          console.log(
-            `[Bot:${bot.symbol}] ` +
-            `PROFIT RESET COMPLETE | ` +
-            `RESTARTING ENTRY MODEL`
-          );
+        console.log(
+          `[Bot:${bot.symbol}] ` +
+          `PROFIT RESET COMPLETE | ` +
+          `RESTARTING ENTRY MODEL`
+        );
 
-          await entryModelEngine.startEngine(
-            bot
-          );
+        await entryModelEngine.startEngine(
+          bot
+        );
 
-          console.log(
-            `[Bot:${bot.symbol}] ` +
-            `NEW TRADE CYCLE READY`
-          );
-        };
+        console.log(
+          `[Bot:${bot.symbol}] ` +
+          `NEW TRADE CYCLE READY`
+        );
+      };
 
       bot.onTradeLoss =
         async (finalPnl) => {
 
-          console.log(
-            `[Bot:${bot.symbol}] ` +
-            `TRADE CYCLE LOSS | ` +
-            `P/L=${finalPnl} | KILL`
-          );
+        console.log(
+          `[Bot:${bot.symbol}] ` +
+          `TRADE CYCLE LOSS | ` +
+          `P/L=${finalPnl} | KILL`
+        );
 
-          tradeLifecycle.stop(
-            bot.id
-          );
+        tradeLifecycle.stop(
+          bot.id
+        );
 
-          bot.status =
-            "KILLED";
+        bot.status =
+          "KILLED";
 
-          console.log(
-            `[Bot:${bot.symbol}] ` +
-            `BOT KILLED`
-          );
-        };
+        console.log(
+          `[Bot:${bot.symbol}] ` +
+          `BOT KILLED`
+        );
+      };
 
       bot.onTradeFlat =
         async (finalPnl) => {
 
-          console.log(
-            `[Bot:${bot.symbol}] ` +
-            `TRADE CYCLE ZERO | ` +
-            `P/L=${finalPnl} | RESET`
-          );
+        console.log(
+          `[Bot:${bot.symbol}] ` +
+          `TRADE CYCLE ZERO | ` +
+          `P/L=${finalPnl} | RESET`
+        );
 
-          tradeLifecycle.stop(
-            bot.id
-          );
+        tradeLifecycle.stop(
+          bot.id
+        );
 
-          bot.currentPositionCount =
-            0;
+        bot.currentPositionCount =
+          0;
 
-          bot.firstEntryPrice =
-            null;
+        bot.firstEntryPrice =
+          null;
 
-          bot.averageEntryPrice =
-            null;
+        bot.averageEntryPrice =
+          null;
 
-          bot.originalStopLoss =
-            null;
+        bot.originalStopLoss =
+          null;
 
-          bot.currentTakeProfit =
-            null;
+        bot.currentTakeProfit =
+          null;
 
-          bot.currentTpOrderId =
-            null;
+        bot.currentTpOrderId =
+          null;
 
-          bot.trades =
-            [];
+        bot.trades =
+          [];
 
-          bot.status =
-            "ACTIVE";
-        };
+        bot.status =
+          "ACTIVE";
+      };
 
       bots.push(
         bot
@@ -1091,23 +1091,25 @@ module.exports = function createBotsRouter({
       //
       // REAL POSITION IS NOW OPEN.
       //
-      // STOP ENTRY MODEL.
+      // Entry Model MUST CONTINUE RUNNING.
       //
-      // This applies to:
-      // - Entry Model entry
-      // - Manual ENTER
+      // The pyramid gate above decides whether another
+      // entry may actually be executed.
       //
-      // Pyramid #2 / #3 do NOT restart it.
+      // Therefore:
+      //   Entry #1 -> Entry Model continues
+      //   Entry #2 -> Entry Model continues
+      //   Entry #3 -> Entry Model continues
+      //   Entry #4 -> blocked by maxPositions
+      //
+      // We do NOT stop the engine here.
       // ======================================================
-
-      entryModelEngine.stopEngine(
-        bot.id
-      );
 
       console.log(
         `[Bot:${bot.symbol}] ` +
         `POSITION OPENED | ` +
-        `Entry Model STOPPED`
+        `Entry Model CONTINUES | ` +
+        `Trade #${tradeNumber}`
       );
 
       // ======================================================
@@ -1661,125 +1663,130 @@ module.exports = function createBotsRouter({
 
 router.post("/:id/entry-model/start", async (req, res) => {
 
+  const bot =
+    bots.find(
+      (item) =>
+        item.id === req.params.id
+    );
 
-const bot =
-  bots.find(
-    (item) =>
-      item.id === req.params.id
-  );
+  if (!bot) {
 
-if (!bot) {
+    return res.status(404).json({
+      success: false,
+      error: "Bot not found",
+    });
 
-  return res.status(404).json({
-    success: false,
-    error: "Bot not found",
-  });
+  }
 
-}
+  // --------------------------------------------------------
+  // BOT STATUS
+  // --------------------------------------------------------
 
-// --------------------------------------------------------
-// BOT STATUS
-// --------------------------------------------------------
+  if (
+    bot.status !== "ACTIVE"
+  ) {
 
-if (
-  bot.status !== "ACTIVE"
-) {
+    return res.status(400).json({
+      success: false,
+      error:
+        `Cannot start Entry Model while bot status is ${bot.status}.`,
+    });
 
-  return res.status(400).json({
-    success: false,
-    error:
-      `Cannot start Entry Model while bot status is ${bot.status}.`,
-  });
+  }
 
-}
+  // --------------------------------------------------------
+  // TRIGGER GATE
+  // --------------------------------------------------------
 
-// --------------------------------------------------------
-// TRIGGER GATE
-// --------------------------------------------------------
+  if (
+    bot.triggerLineEnabled === true &&
+    bot.triggerState !== "ARMED"
+  ) {
 
-if (
-  bot.triggerLineEnabled === true &&
-  bot.triggerState !== "ARMED"
-) {
+    return res.status(400).json({
+      success: false,
 
-  return res.status(400).json({
-    success: false,
+      error:
+        "Cannot start Entry Model — Bot is not ARMED.",
 
-    error:
-      "Cannot start Entry Model — Bot is not ARMED.",
+      triggerState:
+        bot.triggerState,
 
-    triggerState:
-      bot.triggerState,
+      triggerLinePrice:
+        bot.triggerLinePrice,
+    });
 
-    triggerLinePrice:
-      bot.triggerLinePrice,
-  });
+  }
 
-}
+  // --------------------------------------------------------
+  // POSITION GATE
+  // --------------------------------------------------------
+  //
+  // Manual START is still blocked while a trade is open.
+  //
+  // Automatic Entry Model continuation after Entry #1/#2
+  // does NOT use this route.
+  //
+  // --------------------------------------------------------
 
-// --------------------------------------------------------
-// POSITION GATE
-// --------------------------------------------------------
+  if (
+    bot.currentPositionCount > 0
+  ) {
 
-if (
-  bot.currentPositionCount > 0
-) {
+    return res.status(400).json({
+      success: false,
 
-  return res.status(400).json({
-    success: false,
+      error:
+        "Cannot start Entry Model while a position is open.",
 
-    error:
-      "Cannot start Entry Model while a position is open.",
+      currentPositionCount:
+        bot.currentPositionCount,
+    });
 
-    currentPositionCount:
-      bot.currentPositionCount,
-  });
+  }
 
-}
+  try {
 
-try {
+    console.log(
+      `[Bot:${bot.symbol}] ` +
+      `MANUAL ENTRY MODEL START`
+    );
 
-  console.log(
-    `[Bot:${bot.symbol}] ` +
-    `MANUAL ENTRY MODEL START`
-  );
+    await entryModelEngine.startEngine(
+      bot
+    );
 
-  await entryModelEngine.startEngine(
-    bot
-  );
+    return res.json({
 
-  return res.json({
+      success:
+        true,
 
-    success:
-      true,
+      message:
+        "Entry Model started.",
 
-    message:
-      "Entry Model started.",
+      bot,
 
-    bot,
+    });
 
-  });
+  } catch (error) {
 
-} catch (error) {
+    console.error(
+      `[Bot:${bot.symbol}] ` +
+      `ENTRY MODEL START ERROR:`,
+      error
+    );
 
-  console.error(
-    `[Bot:${bot.symbol}] ` +
-    `ENTRY MODEL START ERROR:`,
-    error
-  );
+    return res.status(500).json({
 
-  return res.status(500).json({
+      success:
+        false,
 
-    success:
-      false,
+      error:
+        error.message,
 
-    error:
-      error.message,
+    });
 
-  });
-
-}
-
+  }
 
 });
 
@@ -1789,153 +1796,30 @@ try {
 
 router.post("/:id/entry-model/stop", (req, res) => {
 
-
-const bot =
-  bots.find(
-    (item) =>
-      item.id === req.params.id
-  );
-
-if (!bot) {
-
-  return res.status(404).json({
-    success: false,
-    error: "Bot not found",
-  });
-
-}
-
-try {
-
-  console.log(
-    `[Bot:${bot.symbol}] ` +
-    `MANUAL ENTRY MODEL STOP`
-  );
-
-  entryModelEngine.stopEngine(
-    bot.id
-  );
-
-  return res.json({
-
-    success:
-      true,
-
-    message:
-      "Entry Model stopped.",
-
-    bot,
-
-  });
-
-} catch (error) {
-
-  console.error(
-    `[Bot:${bot.symbol}] ` +
-    `ENTRY MODEL STOP ERROR:`,
-    error
-  );
-
-  return res.status(500).json({
-
-    success:
-      false,
-
-    error:
-      error.message,
-
-  });
-
-}
-
-
-});
-
-  
-
-  // ==========================================================
-  // DELETE
-  // ==========================================================
-
-  router.delete("/:id", (req, res) => {
-
-    const index =
-      bots.findIndex(
-        (item) =>
-          item.id === req.params.id
-      );
-
-    if (index === -1) {
-
-      return res.status(404).json({
-        success:
-          false,
-
-        error:
-          "Bot not found",
-      });
-
-    }
-
-    const bot =
-      bots[index];
-
-    // --------------------------------------------------------
-    // STOP TP/SL TIMER
-    // --------------------------------------------------------
-
-    const tpTimer =
-      botTimers.get(
-        bot.id
-      );
-
-    if (tpTimer) {
-
-      clearTimeout(
-        tpTimer
-      );
-
-      botTimers.delete(
-        bot.id
-      );
-
-    }
-
-    // --------------------------------------------------------
-    // STOP TRIGGER TIMER
-    // --------------------------------------------------------
-
-    stopTriggerMonitor(
-      bot
+  const bot =
+    bots.find(
+      (item) =>
+        item.id === req.params.id
     );
 
-    // --------------------------------------------------------
-    // STOP TRADE LIFECYCLE
-    // --------------------------------------------------------
+  if (!bot) {
 
-    tradeLifecycle.stop(
-      bot.id
+    return res.status(404).json({
+      success: false,
+      error: "Bot not found",
+    });
+
+  }
+
+  try {
+
+    console.log(
+      `[Bot:${bot.symbol}] ` +
+      `MANUAL ENTRY MODEL STOP`
     );
-
-    // --------------------------------------------------------
-    // STOP ENTRY MODEL
-    // --------------------------------------------------------
 
     entryModelEngine.stopEngine(
       bot.id
-    );
-
-    // --------------------------------------------------------
-    // DELETE
-    // --------------------------------------------------------
-
-    bots.splice(
-      index,
-      1
-    );
-
-    console.log(
-      `[Bot] Deleted ${bot.name} | ${bot.symbol}`
     );
 
     return res.json({
@@ -1943,32 +1827,151 @@ try {
       success:
         true,
 
-      deletedBotId:
-        bot.id,
+      message:
+        "Entry Model stopped.",
+
+      bot,
 
     });
 
+  } catch (error) {
+
+    console.error(
+      `[Bot:${bot.symbol}] ` +
+      `ENTRY MODEL STOP ERROR:`,
+      error
+    );
+
+    return res.status(500).json({
+
+      success:
+        false,
+
+      error:
+        error.message,
+
+    });
+
+  }
+
+});
+
+// ==========================================================
+// DELETE
+// ==========================================================
+
+router.delete("/:id", (req, res) => {
+
+  const index =
+    bots.findIndex(
+      (item) =>
+        item.id === req.params.id
+    );
+
+  if (index === -1) {
+
+    return res.status(404).json({
+      success:
+        false,
+
+      error:
+        "Bot not found",
+    });
+
+  }
+
+  const bot =
+    bots[index];
+
+  // --------------------------------------------------------
+  // STOP TP/SL TIMER
+  // --------------------------------------------------------
+
+  const tpTimer =
+    botTimers.get(
+      bot.id
+    );
+
+  if (tpTimer) {
+
+    clearTimeout(
+      tpTimer
+    );
+
+    botTimers.delete(
+      bot.id
+    );
+
+  }
+
+  // --------------------------------------------------------
+  // STOP TRIGGER TIMER
+  // --------------------------------------------------------
+
+  stopTriggerMonitor(
+    bot
+  );
+
+  // --------------------------------------------------------
+  // STOP TRADE LIFECYCLE
+  // --------------------------------------------------------
+
+  tradeLifecycle.stop(
+    bot.id
+  );
+
+  // --------------------------------------------------------
+  // STOP ENTRY MODEL
+  // --------------------------------------------------------
+
+  entryModelEngine.stopEngine(
+    bot.id
+  );
+
+  // --------------------------------------------------------
+  // DELETE
+  // --------------------------------------------------------
+
+  bots.splice(
+    index,
+    1
+  );
+
+  console.log(
+    `[Bot] Deleted ${bot.name} | ${bot.symbol}`
+  );
+
+  return res.json({
+
+    success:
+      true,
+
+    deletedBotId:
+      bot.id,
+
   });
 
-  // ==========================================================
-  // INTERNAL BOT ACCESS
-  // ==========================================================
+});
 
-  router.getBot = (
-    botId
-  ) => {
+// ==========================================================
+// INTERNAL BOT ACCESS
+// ==========================================================
 
-    return bots.find(
-      (bot) =>
-        bot.id === botId
-    ) || null;
+router.getBot = (
+  botId
+) => {
 
-  };
+  return bots.find(
+    (bot) =>
+      bot.id === botId
+  ) || null;
 
-  // ==========================================================
-  // RETURN ROUTER
-  // ==========================================================
+};
 
-  return router;
+// ==========================================================
+// RETURN ROUTER
+// ==========================================================
+
+return router;
 };
 
