@@ -46,6 +46,104 @@ export async function getBots() {
   return data;
 }
 
+  // ============================================================
+  // PRICE MODEL
+  // ============================================================
+
+  export async function getPriceModel(botId) {
+    const response = await fetch(
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(botId)}/price-model`
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data?.error || "Price Model request failed"
+      );
+    }
+
+    return data;
+  }
+
+
+export async function startPriceModel(botId) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/bots/${encodeURIComponent(
+      botId
+    )}/price-model/start`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+      "Failed to start Price Model"
+    );
+  }
+
+  return data;
+}
+
+export async function stopPriceModel(botId) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/bots/${encodeURIComponent(
+      botId
+    )}/price-model/stop`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+      "Failed to stop Price Model"
+    );
+  }
+
+  return data;
+}
+
+export async function scanPriceModel(botId) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/bots/${encodeURIComponent(
+      botId
+    )}/price-model/scan`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+      "Price Model scan failed"
+    );
+  }
+
+  return data;
+}
+
+
+
 // ============================================================
 // ENTRY MODEL
 // ============================================================

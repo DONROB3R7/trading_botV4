@@ -11,6 +11,9 @@ const tradeLifecycle =
 const entryModelEngine =
   require("../entry-models/entryModelEngine");
 
+const PriceModelManager =
+  require("../entry-models/priceModelManager");
+
 // ============================================================
 // IN-MEMORY BOT STORAGE
 // ============================================================
@@ -19,12 +22,321 @@ const bots = [];
 const botTimers = new Map();
 const triggerTimers = new Map();
 
+const priceModelManager =
+  new PriceModelManager();
+
+// ==========================================================
+// GET PRICE MODEL STATE
+// ==========================================================
+
+router.get(
+  "/:botId/price-model",
+  (req, res) => {
+
+    const botId =
+      String(req.params.botId);
+
+    const bot =
+      bots.find(
+        (item) =>
+          item.id === botId
+      );
+
+    if (!bot) {
+
+      return res.status(404).json({
+        success: false,
+        error: "Bot not found",
+      });
+
+    }
+
+    const priceModel =
+      priceModelManager.get(
+        botId
+      );
+
+    if (!priceModel) {
+
+      return res.status(404).json({
+        success: false,
+        error:
+          "Price Model not found for bot",
+      });
+
+    }
+
+    return res.json({
+      success: true,
+      botId: bot.id,
+      botName: bot.name,
+      symbol: bot.symbol,
+      priceModel:
+        priceModel.getState(),
+    });
+
+  }
+);
+
+// ============================================================
+// PRICE MODEL CONTROLS
+// ============================================================
+
+router.post(
+  "/:botId/price-model/start",
+  async (req, res) => {
+
+    const botId =
+      String(req.params.botId);
+
+    const bot =
+      bots.find(
+        (item) =>
+          item.id === botId
+      );
+
+    if (!bot) {
+
+      return res.status(404).json({
+        success: false,
+        error: "Bot not found",
+      });
+
+    }
+
+    const priceModel =
+      priceModelManager.get(
+        botId
+      );
+
+    if (!priceModel) {
+
+      return res.status(404).json({
+        success: false,
+        error:
+          "Price Model not found for bot",
+      });
+
+    }
+
+    await priceModel.start();
+
+    return res.json({
+      success: true,
+      priceModel:
+        priceModel.getState(),
+    });
+
+  }
+);
+
+// ============================================================
+// PRICE MODEL STOP
+// ============================================================
+
+router.post(
+  "/:botId/price-model/stop",
+  (req, res) => {
+
+    const botId =
+      String(req.params.botId);
+
+    const bot =
+      bots.find(
+        (item) =>
+          item.id === botId
+      );
+
+    if (!bot) {
+
+      return res.status(404).json({
+        success: false,
+        error: "Bot not found",
+      });
+
+    }
+
+    const priceModel =
+      priceModelManager.get(
+        botId
+      );
+
+    if (!priceModel) {
+
+      return res.status(404).json({
+        success: false,
+        error:
+          "Price Model not found for bot",
+      });
+
+    }
+
+    priceModel.stop();
+
+    return res.json({
+      success: true,
+      priceModel:
+        priceModel.getState(),
+    });
+
+  }
+);
+
+// ============================================================
+// PRICE MODEL BIAS
+// ============================================================
+
+router.post(
+  "/:botId/price-model/bias",
+  (req, res) => {
+
+    const botId =
+      String(req.params.botId);
+
+    const bot =
+      bots.find(
+        (item) =>
+          item.id === botId
+      );
+
+    if (!bot) {
+
+      return res.status(404).json({
+        success: false,
+        error: "Bot not found",
+      });
+
+    }
+
+    const priceModel =
+      priceModelManager.get(
+        botId
+      );
+
+    if (!priceModel) {
+
+      return res.status(404).json({
+        success: false,
+        error:
+          "Price Model not found for bot",
+      });
+
+    }
+
+    const bias =
+      String(
+        req.body?.bias || ""
+      ).toUpperCase();
+
+    if (
+      ![
+        "LONG",
+        "SHORT",
+        "NEUTRAL",
+      ].includes(bias)
+    ) {
+
+      return res.status(400).json({
+        success: false,
+        error:
+          "Bias must be LONG, SHORT, or NEUTRAL",
+      });
+
+    }
+
+    priceModel.setBias(
+      bias
+    );
+
+    return res.json({
+      success: true,
+      priceModel:
+        priceModel.getState(),
+    });
+
+  }
+);
+
+// ============================================================
+// PRICE MODEL - ONE MANUAL SCAN
+// ============================================================
+
+router.post(
+  "/:botId/price-model/scan",
+  async (req, res) => {
+
+    const botId =
+      String(req.params.botId);
+
+    const bot =
+      bots.find(
+        (item) =>
+          item.id === botId
+      );
+
+    if (!bot) {
+
+      return res.status(404).json({
+        success: false,
+        error: "Bot not found",
+      });
+
+    }
+
+    const priceModel =
+      priceModelManager.get(
+        botId
+      );
+
+    if (!priceModel) {
+
+      return res.status(404).json({
+        success: false,
+        error:
+          "Price Model not found for bot",
+      });
+
+    }
+
+    try {
+
+      const state =
+        await priceModel.runScan();
+
+      return res.json({
+        success: true,
+        priceModel:
+          state,
+      });
+
+    } catch (error) {
+
+      console.error(
+        `[Price Model] SCAN ROUTE ERROR | ` +
+        `Bot=${botId} | ` +
+        `${error.message}`
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          error.message,
+      });
+
+    }
+
+  }
+);
+
 // ============================================================
 // TIMING
 // ============================================================
 
-const TP_SL_DELAY_MS = 30 * 1000;
-const TRIGGER_CHECK_MS = 30 * 1000;
+const TP_SL_DELAY_MS =
+  30 * 1000;
+
+const TRIGGER_CHECK_MS =
+  30 * 1000;
 
 // ============================================================
 // WEEX
@@ -42,31 +354,49 @@ function makeId() {
   return `bot_${Date.now()}`;
 }
 
-function cleanString(value, fallback = "") {
-  if (value === undefined || value === null) {
+function cleanString(
+  value,
+  fallback = ""
+) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
     return fallback;
   }
 
   return String(value).trim();
 }
 
-function cleanNumber(value, fallback = 0) {
-  const number = Number(value);
+function cleanNumber(
+  value,
+  fallback = 0
+) {
+  const number =
+    Number(value);
 
-  if (!Number.isFinite(number)) {
+  if (
+    !Number.isFinite(number)
+  ) {
     return fallback;
   }
 
   return number;
 }
 
-function cleanDirection(value) {
-  return String(value || "LONG").toUpperCase() === "SHORT"
+function cleanDirection(
+  value
+) {
+  return String(
+    value || "LONG"
+  ).toUpperCase() === "SHORT"
     ? "SHORT"
     : "LONG";
 }
 
-function cleanTriggerLineEnabled(value) {
+function cleanTriggerLineEnabled(
+  value
+) {
   return value === true;
 }
 
@@ -82,7 +412,10 @@ function cleanTriggerLineEnabled(value) {
 // There is NO "OFF" state anymore.
 // ============================================================
 
-function cleanTriggerState(value, enabled) {
+function cleanTriggerState(
+  value,
+  enabled
+) {
   if (!enabled) {
     return "ARMED";
   }
@@ -96,26 +429,46 @@ function cleanTriggerState(value, enabled) {
 // PRICE EXTRACTION
 // ============================================================
 
-function extractPrice(result) {
-  if (result === undefined || result === null) {
+function extractPrice(
+  result
+) {
+  if (
+    result === undefined ||
+    result === null
+  ) {
     return null;
   }
 
-  if (typeof result === "number") {
-    return Number.isFinite(result)
+  if (
+    typeof result ===
+    "number"
+  ) {
+    return Number.isFinite(
+      result
+    )
       ? result
       : null;
   }
 
-  if (typeof result === "string") {
-    const number = Number(result);
+  if (
+    typeof result ===
+    "string"
+  ) {
+    const number =
+      Number(result);
 
-    return Number.isFinite(number)
+    return Number.isFinite(
+      number
+    )
       ? number
       : null;
   }
 
-  if (typeof result === "object") {
+  if (
+    typeof result ===
+    "object"
+  ) {
+
     const candidates = [
       result.price,
       result.lastPrice,
@@ -128,33 +481,80 @@ function extractPrice(result) {
       result.data?.indexPrice,
     ];
 
-    for (const candidate of candidates) {
-      const number = Number(candidate);
+    for (
+      const candidate of
+        candidates
+    ) {
 
-      if (Number.isFinite(number)) {
+      const number =
+        Number(candidate);
+
+      if (
+        Number.isFinite(
+          number
+        )
+      ) {
         return number;
       }
+
     }
 
-    if (Array.isArray(result.data)) {
-      for (const item of result.data) {
-        const number = extractPrice(item);
+    if (
+      Array.isArray(
+        result.data
+      )
+    ) {
 
-        if (Number.isFinite(number)) {
+      for (
+        const item of
+          result.data
+      ) {
+
+        const number =
+          extractPrice(
+            item
+          );
+
+        if (
+          Number.isFinite(
+            number
+          )
+        ) {
           return number;
         }
+
       }
+
     }
 
-    if (Array.isArray(result)) {
-      for (const item of result) {
-        const number = extractPrice(item);
+    if (
+      Array.isArray(
+        result
+      )
+    ) {
 
-        if (Number.isFinite(number)) {
+      for (
+        const item of
+          result
+      ) {
+
+        const number =
+          extractPrice(
+            item
+          );
+
+        if (
+          Number.isFinite(
+            number
+          )
+        ) {
           return number;
         }
+
       }
+
     }
+
   }
 
   return null;
@@ -164,13 +564,19 @@ function extractPrice(result) {
 // GET CURRENT WEEX PRICE
 // ============================================================
 
-async function getCurrentMarketPrice(symbol) {
-  const cleanSymbolValue = String(symbol || "")
-    .trim()
-    .toUpperCase();
+async function getCurrentMarketPrice(
+  symbol
+) {
+
+  const cleanSymbolValue =
+    String(symbol || "")
+      .trim()
+      .toUpperCase();
 
   if (!cleanSymbolValue) {
-    throw new Error("Missing symbol");
+    throw new Error(
+      "Missing symbol"
+    );
   }
 
   const url =
@@ -178,24 +584,36 @@ async function getCurrentMarketPrice(symbol) {
     `?symbol=${encodeURIComponent(cleanSymbolValue)}` +
     `&priceType=INDEX`;
 
-  console.log(`[WEEX] GET ${url}`);
+  console.log(
+    `[WEEX] GET ${url}`
+  );
 
-  const response = await fetch(url);
+  const response =
+    await fetch(url);
 
   if (!response.ok) {
+
     throw new Error(
       `WEEX symbolPrice HTTP ${response.status}`
     );
+
   }
 
-  const data = await response.json();
+  const data =
+    await response.json();
 
-  const price = extractPrice(data);
+  const price =
+    extractPrice(data);
 
-  if (!Number.isFinite(price) || price <= 0) {
+  if (
+    !Number.isFinite(price) ||
+    price <= 0
+  ) {
+
     throw new Error(
       `Invalid WEEX symbolPrice response: ${JSON.stringify(data)}`
     );
+
   }
 
   return price;
@@ -210,32 +628,49 @@ function hasTriggerLineTouched(
   currentPrice,
   triggerPrice
 ) {
+
   if (
-    !Number.isFinite(previousPrice) ||
-    !Number.isFinite(currentPrice) ||
-    !Number.isFinite(triggerPrice)
+    !Number.isFinite(
+      previousPrice
+    ) ||
+    !Number.isFinite(
+      currentPrice
+    ) ||
+    !Number.isFinite(
+      triggerPrice
+    )
   ) {
     return false;
   }
 
-  if (currentPrice === triggerPrice) {
-    return true;
-  }
-
-  if (previousPrice === triggerPrice) {
-    return true;
-  }
-
   if (
-    previousPrice < triggerPrice &&
-    currentPrice > triggerPrice
+    currentPrice ===
+    triggerPrice
   ) {
     return true;
   }
 
   if (
-    previousPrice > triggerPrice &&
-    currentPrice < triggerPrice
+    previousPrice ===
+    triggerPrice
+  ) {
+    return true;
+  }
+
+  if (
+    previousPrice <
+      triggerPrice &&
+    currentPrice >
+      triggerPrice
+  ) {
+    return true;
+  }
+
+  if (
+    previousPrice >
+      triggerPrice &&
+    currentPrice <
+      triggerPrice
   ) {
     return true;
   }
@@ -247,37 +682,62 @@ function hasTriggerLineTouched(
 // STOP TRIGGER MONITOR
 // ============================================================
 
-function stopTriggerMonitor(bot) {
+function stopTriggerMonitor(
+  bot
+) {
+
   if (!bot) {
     return;
   }
 
-  const timer = triggerTimers.get(bot.id);
+  const timer =
+    triggerTimers.get(
+      bot.id
+    );
 
   if (timer) {
-    clearInterval(timer);
-    triggerTimers.delete(bot.id);
+
+    clearInterval(
+      timer
+    );
+
+    triggerTimers.delete(
+      bot.id
+    );
+
   }
+
 }
 
 // ============================================================
 // START TRIGGER MONITOR
 // ============================================================
 
-function startTriggerMonitor(bot) {
+function startTriggerMonitor(
+  bot
+) {
+
   if (!bot) {
     return;
   }
 
-  if (bot.triggerLineEnabled !== true) {
+  if (
+    bot.triggerLineEnabled !==
+    true
+  ) {
     return;
   }
 
-  if (bot.triggerState === "ARMED") {
+  if (
+    bot.triggerState ===
+    "ARMED"
+  ) {
     return;
   }
 
-  stopTriggerMonitor(bot);
+  stopTriggerMonitor(
+    bot
+  );
 
   console.log(
     `[Trigger:${bot.symbol}] Monitor started | ` +
@@ -285,1693 +745,1786 @@ function startTriggerMonitor(bot) {
     `Baseline=${bot.triggerLastPrice}`
   );
 
-  const timer = setInterval(async () => {
-    try {
+  const timer =
+    setInterval(
+      async () => {
 
-      if (bot.triggerLineEnabled !== true) {
-        stopTriggerMonitor(bot);
-        return;
-      }
+        try {
 
-      if (bot.triggerState === "ARMED") {
-        stopTriggerMonitor(bot);
-        return;
-      }
+          if (
+            bot.triggerLineEnabled !==
+            true
+          ) {
 
-      const triggerPrice =
-        Number(bot.triggerLinePrice);
+            stopTriggerMonitor(
+              bot
+            );
 
-      if (
-        !Number.isFinite(triggerPrice) ||
-        triggerPrice <= 0
-      ) {
-        console.log(
-          `[Trigger:${bot.symbol}] Invalid trigger price`
-        );
+            return;
 
-        return;
-      }
+          }
 
-      let currentPrice;
+          if (
+            bot.triggerState ===
+            "ARMED"
+          ) {
 
-      try {
+            stopTriggerMonitor(
+              bot
+            );
 
-        currentPrice =
-          await getCurrentMarketPrice(
-            bot.symbol
+            return;
+
+          }
+
+          const triggerPrice =
+            Number(
+              bot.triggerLinePrice
+            );
+
+          if (
+            !Number.isFinite(
+              triggerPrice
+            ) ||
+            triggerPrice <= 0
+          ) {
+
+            console.log(
+              `[Trigger:${bot.symbol}] Invalid trigger price`
+            );
+
+            return;
+          }
+
+          let currentPrice;
+
+          try {
+
+            currentPrice =
+              await getCurrentMarketPrice(
+                bot.symbol
+              );
+
+          } catch (error) {
+
+            console.log(
+              `[Trigger:${bot.symbol}] ` +
+              `Price fetch failed: ${error.message}`
+            );
+
+            return;
+
+          }
+
+          if (
+            !Number.isFinite(
+              currentPrice
+            ) ||
+            currentPrice <= 0
+          ) {
+
+            console.log(
+              `[Trigger:${bot.symbol}] Invalid current price`
+            );
+
+            return;
+
+          }
+
+          const previousPrice =
+            Number(
+              bot.triggerLastPrice
+            );
+
+          console.log(
+            `[Trigger:${bot.symbol}] Check | ` +
+            `Previous=${previousPrice} | ` +
+            `Current=${currentPrice} | ` +
+            `Trigger=${triggerPrice}`
           );
 
-      } catch (error) {
+          if (
+            !Number.isFinite(
+              previousPrice
+            ) ||
+            previousPrice <= 0
+          ) {
 
-        console.log(
-          `[Trigger:${bot.symbol}] ` +
-          `Price fetch failed: ${error.message}`
-        );
+            bot.triggerLastPrice =
+              currentPrice;
 
-        return;
-      }
+            console.log(
+              `[Trigger:${bot.symbol}] ` +
+              `Baseline initialized=${currentPrice}`
+            );
 
-      if (
-        !Number.isFinite(currentPrice) ||
-        currentPrice <= 0
-      ) {
-        console.log(
-          `[Trigger:${bot.symbol}] Invalid current price`
-        );
+            return;
 
-        return;
-      }
+          }
 
-      const previousPrice =
-        Number(bot.triggerLastPrice);
+          const touched =
+            hasTriggerLineTouched(
+              previousPrice,
+              currentPrice,
+              triggerPrice
+            );
 
-      console.log(
-        `[Trigger:${bot.symbol}] Check | ` +
-        `Previous=${previousPrice} | ` +
-        `Current=${currentPrice} | ` +
-        `Trigger=${triggerPrice}`
-      );
+          if (touched) {
 
-      if (
-        !Number.isFinite(previousPrice) ||
-        previousPrice <= 0
-      ) {
+            bot.triggerState =
+              "ARMED";
 
-        bot.triggerLastPrice =
-          currentPrice;
+            bot.triggerArmedAt =
+              new Date().toISOString();
 
-        console.log(
-          `[Trigger:${bot.symbol}] ` +
-          `Baseline initialized=${currentPrice}`
-        );
+            bot.triggerArmedPrice =
+              currentPrice;
 
-        return;
-      }
+            bot.triggerLastPrice =
+              currentPrice;
 
-      const touched =
-        hasTriggerLineTouched(
-          previousPrice,
-          currentPrice,
-          triggerPrice
-        );
+            console.log(
+              `[Trigger:${bot.symbol}] ` +
+              `TRIGGER ARMED | ` +
+              `Previous=${previousPrice} | ` +
+              `Current=${currentPrice} | ` +
+              `Trigger=${triggerPrice}`
+            );
 
-      if (touched) {
+            stopTriggerMonitor(
+              bot
+            );
 
-        bot.triggerState = "ARMED";
+            return;
 
-        bot.triggerArmedAt =
-          new Date().toISOString();
+          }
 
-        bot.triggerArmedPrice =
-          currentPrice;
+          bot.triggerLastPrice =
+            currentPrice;
 
-        bot.triggerLastPrice =
-          currentPrice;
+        } catch (error) {
 
-        console.log(
-          `[Trigger:${bot.symbol}] ` +
-          `TRIGGER ARMED | ` +
-          `Previous=${previousPrice} | ` +
-          `Current=${currentPrice} | ` +
-          `Trigger=${triggerPrice}`
-        );
+          console.error(
+            `[Trigger:${bot.symbol}] Monitor error:`,
+            error.message
+          );
 
-        stopTriggerMonitor(bot);
+        }
 
-        return;
-      }
-
-      bot.triggerLastPrice =
-        currentPrice;
-
-    } catch (error) {
-
-      console.error(
-        `[Trigger:${bot.symbol}] Monitor error:`,
-        error.message
-      );
-
-    }
-
-  }, TRIGGER_CHECK_MS);
+      },
+      TRIGGER_CHECK_MS
+    );
 
   triggerTimers.set(
     bot.id,
     timer
   );
+
 }
 
 // ============================================================
 // FACTORY
 // ============================================================
 
-module.exports = function createBotsRouter({
-  orders,
-  positions,
-}) {
-
-  // ==========================================================
-  // CONNECT TRADE LIFECYCLE
-  // ==========================================================
-
-  tradeLifecycle.configure({
+module.exports =
+  function createBotsRouter({
     orders,
     positions,
-  });
+  }) {
 
-  tradeLifecycle.configureBotLookup(
-    (botId) => {
+    // ==========================================================
+    // CONNECT TRADE LIFECYCLE
+    // ==========================================================
 
-      return bots.find(
-        (bot) =>
-          bot.id === botId
-      ) || null;
+    tradeLifecycle.configure({
+      orders,
+      positions,
+    });
 
-    }
-  );
+    tradeLifecycle.configureBotLookup(
+      (botId) => {
 
-  // ==========================================================
-  // GET ALL BOTS
-  // ==========================================================
-
-  router.get("/", (req, res) => {
-
-    console.log(
-      `[Bot] GET /api/bots | Count=${bots.length}`
-    );
-
-    return res.json(
-      bots
-    );
-
-  });
-
-  // ==========================================================
-  // CREATE BOT
-  // ==========================================================
-
-  router.post("/", async (req, res) => {
-
-    try {
-
-      const body =
-        req.body || {};
-
-      // ------------------------------------------------------
-      // BASIC BOT DATA
-      // ------------------------------------------------------
-
-      const cleanName =
-        cleanString(
-          body.name,
-          `Bot ${bots.length + 1}`
+        return (
+          bots.find(
+            (bot) =>
+              bot.id === botId
+          ) || null
         );
-
-      const cleanSymbol =
-        cleanString(
-          body.symbol
-        ).toUpperCase();
-
-      if (!cleanSymbol) {
-
-        return res.status(400).json({
-          success: false,
-          error: "Symbol is required",
-        });
 
       }
+    );
 
-      const botDirection =
-        cleanDirection(
-          body.direction
+    // ==========================================================
+    // GET ALL BOTS
+    // ==========================================================
+
+    router.get(
+      "/",
+      (req, res) => {
+
+        console.log(
+          `[Bot] GET /api/bots | Count=${bots.length}`
         );
 
-      const cleanEntryModel =
-        cleanString(
-          body.entryModel,
-          "BUTTON_PRESS"
+        return res.json(
+          bots
         );
-
-      const cleanStopLoss =
-        cleanNumber(
-          body.stopLoss,
-          0
-        );
-
-      const cleanTakeProfit =
-        cleanNumber(
-          body.takeProfit,
-          0
-        );
-
-      // ------------------------------------------------------
-      // PYRAMID
-      // ------------------------------------------------------
-
-      const cleanPyramidPositions =
-        Math.max(
-          1,
-          Math.min(
-            3,
-            Math.floor(
-              cleanNumber(
-                body.pyramidPositions,
-                1
-              )
-            )
-          )
-        );
-
-      // ======================================================
-      // TRIGGER LINE
-      // ======================================================
-
-      const triggerLineEnabled =
-        cleanTriggerLineEnabled(
-          body.triggerLineEnabled
-        );
-
-      const triggerLinePrice =
-        cleanNumber(
-          body.triggerLinePrice,
-          0
-        );
-
-      if (
-        triggerLineEnabled &&
-        (
-          !Number.isFinite(
-            triggerLinePrice
-          ) ||
-          triggerLinePrice <= 0
-        )
-      ) {
-
-        return res.status(400).json({
-          success: false,
-          error:
-            "Trigger Line is enabled but trigger price is invalid",
-        });
 
       }
+    );
 
-      // ======================================================
-      // INITIAL TRIGGER STATE
-      // ======================================================
+    // ==========================================================
+    // CREATE BOT
+    // ==========================================================
 
-      let initialTriggerPrice =
-        null;
-
-      let initialTriggerState =
-        cleanTriggerState(
-          null,
-          triggerLineEnabled
-        );
-
-      let triggerArmedAt =
-        null;
-
-      let triggerArmedPrice =
-        null;
-
-      // ======================================================
-      // TRIGGER LINE ENABLED
-      // ======================================================
-
-      if (triggerLineEnabled) {
-
-        initialTriggerState =
-          "NEUTRAL";
+    router.post(
+      "/",
+      async (req, res) => {
 
         try {
 
-          initialTriggerPrice =
-            await getCurrentMarketPrice(
-              cleanSymbol
+          const body =
+            req.body || {};
+
+          // ----------------------------------------------------
+          // BASIC BOT DATA
+          // ----------------------------------------------------
+
+          const cleanName =
+            cleanString(
+              body.name,
+              `Bot ${bots.length + 1}`
             );
 
-          console.log(
-            `[Trigger:${cleanSymbol}] ` +
-            `Creation baseline=${initialTriggerPrice} | ` +
-            `Trigger=${triggerLinePrice}`
-          );
+          const cleanSymbol =
+            cleanString(
+              body.symbol
+            ).toUpperCase();
+
+          if (!cleanSymbol) {
+
+            return res.status(400).json({
+              success: false,
+              error: "Symbol is required",
+            });
+
+          }
+
+          const botDirection =
+            cleanDirection(
+              body.direction
+            );
+
+          const cleanEntryModel =
+            cleanString(
+              body.entryModel,
+              "BUTTON_PRESS"
+            );
+
+          const cleanStopLoss =
+            cleanNumber(
+              body.stopLoss,
+              0
+            );
+
+          const cleanTakeProfit =
+            cleanNumber(
+              body.takeProfit,
+              0
+            );
+
+          // ----------------------------------------------------
+          // PYRAMID
+          // ----------------------------------------------------
+
+          const cleanPyramidPositions =
+            Math.max(
+              1,
+              Math.min(
+                3,
+                Math.floor(
+                  cleanNumber(
+                    body.pyramidPositions,
+                    1
+                  )
+                )
+              )
+            );
+
+          // ====================================================
+          // TRIGGER LINE
+          // ====================================================
+
+          const triggerLineEnabled =
+            cleanTriggerLineEnabled(
+              body.triggerLineEnabled
+            );
+
+          const triggerLinePrice =
+            cleanNumber(
+              body.triggerLinePrice,
+              0
+            );
 
           if (
-            initialTriggerPrice ===
-            triggerLinePrice
+            triggerLineEnabled &&
+            (
+              !Number.isFinite(
+                triggerLinePrice
+              ) ||
+              triggerLinePrice <= 0
+            )
           ) {
+
+            return res.status(400).json({
+              success: false,
+              error:
+                "Trigger Line is enabled but trigger price is invalid",
+            });
+
+          }
+
+          // ====================================================
+          // INITIAL TRIGGER STATE
+          // ====================================================
+
+          let initialTriggerPrice =
+            null;
+
+          let initialTriggerState =
+            cleanTriggerState(
+              null,
+              triggerLineEnabled
+            );
+
+          let triggerArmedAt =
+            null;
+
+          let triggerArmedPrice =
+            null;
+
+          // ====================================================
+          // TRIGGER LINE ENABLED
+          // ====================================================
+
+          if (
+            triggerLineEnabled
+          ) {
+
+            initialTriggerState =
+              "NEUTRAL";
+
+            try {
+
+              initialTriggerPrice =
+                await getCurrentMarketPrice(
+                  cleanSymbol
+                );
+
+              console.log(
+                `[Trigger:${cleanSymbol}] ` +
+                `Creation baseline=${initialTriggerPrice} | ` +
+                `Trigger=${triggerLinePrice}`
+              );
+
+              if (
+                initialTriggerPrice ===
+                triggerLinePrice
+              ) {
+
+                initialTriggerState =
+                  "ARMED";
+
+                triggerArmedAt =
+                  new Date().toISOString();
+
+                triggerArmedPrice =
+                  initialTriggerPrice;
+
+                console.log(
+                  `[Trigger:${cleanSymbol}] ` +
+                  `ARMED IMMEDIATELY AT CREATION`
+                );
+
+              }
+
+            } catch (error) {
+
+              console.error(
+                `[Trigger:${cleanSymbol}] ` +
+                `Could not get current market price:`,
+                error.message
+              );
+
+              return res.status(502).json({
+                success: false,
+                error:
+                  `Could not get current market price for ${cleanSymbol}: ${error.message}`,
+              });
+
+            }
+
+          } else {
 
             initialTriggerState =
               "ARMED";
 
-            triggerArmedAt =
-              new Date().toISOString();
-
-            triggerArmedPrice =
-              initialTriggerPrice;
-
             console.log(
               `[Trigger:${cleanSymbol}] ` +
-              `ARMED IMMEDIATELY AT CREATION`
+              `Trigger Line disabled | ` +
+              `Bot starts ARMED`
             );
 
           }
 
+          // ====================================================
+          // BOT OBJECT
+          // ====================================================
+
+          const bot = {
+
+            id:
+              makeId(),
+
+            name:
+              cleanName,
+
+            symbol:
+              cleanSymbol,
+
+            direction:
+              botDirection,
+
+            entryModel:
+              cleanEntryModel,
+
+            stopLoss:
+              cleanStopLoss,
+
+            takeProfit:
+              cleanTakeProfit,
+
+            pyramidPositions:
+              cleanPyramidPositions,
+
+            maxPositions:
+              cleanPyramidPositions,
+
+            currentPositionCount:
+              0,
+
+            firstEntryPrice:
+              null,
+
+            averageEntryPrice:
+              null,
+
+            originalStopLoss:
+              null,
+
+            currentTakeProfit:
+              null,
+
+            currentTpOrderId:
+              null,
+
+            trades:
+              [],
+
+            status:
+              "ACTIVE",
+
+            createdAt:
+              new Date().toISOString(),
+
+            // ==================================================
+            // TRIGGER LINE
+            // ==================================================
+
+            triggerLineEnabled,
+
+            triggerLinePrice:
+              triggerLineEnabled
+                ? triggerLinePrice
+                : null,
+
+            triggerState:
+              initialTriggerState,
+
+            triggerLastPrice:
+              initialTriggerPrice,
+
+            triggerArmedAt,
+
+            triggerArmedPrice,
+          };
+
+          // ====================================================
+          // TRADE LIFECYCLE CALLBACKS
+          // ====================================================
+
+          bot.onTradeProfit =
+            async (finalPnl) => {
+
+              console.log(
+                `[Bot:${bot.symbol}] ` +
+                `TRADE CYCLE PROFIT | ` +
+                `P/L=${finalPnl} | RESET`
+              );
+
+              tradeLifecycle.stop(
+                bot.id
+              );
+
+              // ------------------------------------------------
+              // RESET TRADE STATE
+              // ------------------------------------------------
+
+              bot.currentPositionCount =
+                0;
+
+              bot.firstEntryPrice =
+                null;
+
+              bot.averageEntryPrice =
+                null;
+
+              bot.originalStopLoss =
+                null;
+
+              bot.currentTakeProfit =
+                null;
+
+              bot.currentTpOrderId =
+                null;
+
+              bot.trades =
+                [];
+
+              bot.status =
+                "ACTIVE";
+
+              // ------------------------------------------------
+              // RESTART ENTRY MODEL
+              // ------------------------------------------------
+
+              console.log(
+                `[Bot:${bot.symbol}] ` +
+                `PROFIT RESET COMPLETE | ` +
+                `RESTARTING ENTRY MODEL`
+              );
+
+              await entryModelEngine.startEngine(
+                bot
+              );
+
+              console.log(
+                `[Bot:${bot.symbol}] ` +
+                `NEW TRADE CYCLE READY`
+              );
+
+            };
+
+          bot.onTradeLoss =
+            async (finalPnl) => {
+
+              console.log(
+                `[Bot:${bot.symbol}] ` +
+                `TRADE CYCLE LOSS | ` +
+                `P/L=${finalPnl} | KILL`
+              );
+
+              tradeLifecycle.stop(
+                bot.id
+              );
+
+              bot.status =
+                "KILLED";
+
+              console.log(
+                `[Bot:${bot.symbol}] ` +
+                `BOT KILLED`
+              );
+
+            };
+
+          bot.onTradeFlat =
+            async (finalPnl) => {
+
+              console.log(
+                `[Bot:${bot.symbol}] ` +
+                `TRADE CYCLE ZERO | ` +
+                `P/L=${finalPnl} | RESET`
+              );
+
+              tradeLifecycle.stop(
+                bot.id
+              );
+
+              bot.currentPositionCount =
+                0;
+
+              bot.firstEntryPrice =
+                null;
+
+              bot.averageEntryPrice =
+                null;
+
+              bot.originalStopLoss =
+                null;
+
+              bot.currentTakeProfit =
+                null;
+
+              bot.currentTpOrderId =
+                null;
+
+              bot.trades =
+                [];
+
+              bot.status =
+                "ACTIVE";
+
+            };
+
+          bots.push(
+            bot
+          );
+
+          // ====================================================
+          // CREATE SERVER-SIDE PRICE MODEL
+          // ====================================================
+
+          const priceModel =
+            priceModelManager.getOrCreate(
+              bot.id,
+              bot.symbol,
+              bot.direction
+            );
+
+          console.log( `[Bot:${bot.symbol}] ` + `Price Model created | ` + `Bot=${bot.id} | ` + `Direction=${bot.direction}` );
+
+          // ====================================================
+          // CREATE SERVER-SIDE TRADE CYCLE
+          // ====================================================
+
+          const cycle =
+            tradeCycleManager.create(
+              bot.id,
+              {
+                direction:
+                  bot.direction,
+
+                position:
+                  null,
+              }
+            );
+
+          bot.cycleId =
+            bot.id;
+
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `Trade cycle created | ` +
+            `Cycle=${cycle.botId}`
+          );
+
+          // ====================================================
+          // LOG
+          // ====================================================
+
+          console.log(
+            `[Bot] Created ${bot.name} | ` +
+            `${bot.symbol} | ` +
+            `${bot.direction} | ` +
+            `Pyramid=${bot.pyramidPositions}`
+          );
+
+          console.log(
+            `[Bot] Trigger | ` +
+            `Enabled=${bot.triggerLineEnabled} | ` +
+            `Price=${bot.triggerLinePrice} | ` +
+            `State=${bot.triggerState} | ` +
+            `Baseline=${bot.triggerLastPrice}`
+          );
+
+          // ====================================================
+          // START TRIGGER MONITOR
+          // ====================================================
+
+          if (
+            bot.triggerLineEnabled ===
+              true &&
+            bot.triggerState ===
+              "NEUTRAL"
+          ) {
+
+            startTriggerMonitor(
+              bot
+            );
+
+          }
+
+          return res.status(201).json({
+            success:
+              true,
+
+            bot,
+          });
+
         } catch (error) {
 
           console.error(
-            `[Trigger:${cleanSymbol}] ` +
-            `Could not get current market price:`,
-            error.message
+            "[Bot] Create error:",
+            error
           );
 
-          return res.status(502).json({
-            success: false,
+          return res.status(500).json({
+            success:
+              false,
+
             error:
-              `Could not get current market price for ${cleanSymbol}: ${error.message}`,
+              error.message,
           });
 
         }
 
-      } else {
-
-        initialTriggerState =
-          "ARMED";
-
-        console.log(
-          `[Trigger:${cleanSymbol}] ` +
-          `Trigger Line disabled | ` +
-          `Bot starts ARMED`
-        );
-
       }
+    );
 
-      // ======================================================
-      // BOT OBJECT
-      // ======================================================
+    // ==========================================================
+    // ENTER
+    // ==========================================================
 
-      const bot = {
+    router.post(
+      "/:id/enter",
+      async (req, res) => {
 
-        id:
-          makeId(),
+        const bot =
+          bots.find(
+            (item) =>
+              item.id ===
+              req.params.id
+          );
 
-        name:
-          cleanName,
+        if (!bot) {
 
-        symbol:
-          cleanSymbol,
+          return res.status(404).json({
+            success: false,
+            error: "Bot not found",
+          });
 
-        direction:
-          botDirection,
+        }
 
-        entryModel:
-          cleanEntryModel,
+        // ------------------------------------------------------
+        // BOT STATUS
+        // ------------------------------------------------------
 
-        stopLoss:
-          cleanStopLoss,
+        if (
+          bot.status !==
+          "ACTIVE"
+        ) {
 
-        takeProfit:
-          cleanTakeProfit,
+          return res.status(400).json({
+            success: false,
+            error:
+              "Bot is not active",
+          });
 
-        pyramidPositions:
-          cleanPyramidPositions,
+        }
 
-        maxPositions:
-          cleanPyramidPositions,
+        // ------------------------------------------------------
+        // TRIGGER GATE
+        // ------------------------------------------------------
 
-        currentPositionCount:
-          0,
+        if (
+          bot.triggerLineEnabled ===
+            true &&
+          bot.triggerState ===
+            "NEUTRAL"
+        ) {
 
-        firstEntryPrice:
-          null,
+          return res.status(400).json({
+            success: false,
 
-        averageEntryPrice:
-          null,
+            error:
+              "ENTRY BLOCKED — Bot is NEUTRAL. Trigger Line has not been activated.",
 
-        originalStopLoss:
-          null,
+            triggerState:
+              bot.triggerState,
 
-        currentTakeProfit:
-          null,
+            triggerLinePrice:
+              bot.triggerLinePrice,
+          });
 
-        currentTpOrderId:
-          null,
+        }
 
-        trades:
-          [],
+        // ------------------------------------------------------
+        // TP/SL TIMER
+        // ------------------------------------------------------
 
-        status:
-          "ACTIVE",
+        if (
+          botTimers.has(
+            bot.id
+          )
+        ) {
 
-        createdAt:
-          new Date().toISOString(),
+          return res.status(400).json({
+            success: false,
 
-        // ====================================================
-        // TRIGGER LINE
-        // ====================================================
+            error:
+              "TP/SL protection is still being prepared for the previous entry.",
+          });
 
-        triggerLineEnabled,
+        }
 
-        triggerLinePrice:
-          triggerLineEnabled
-            ? triggerLinePrice
-            : null,
+        // ------------------------------------------------------
+        // PYRAMID LIMIT
+        // ------------------------------------------------------
 
-        triggerState:
-          initialTriggerState,
+        if (
+          bot.currentPositionCount >=
+          bot.maxPositions
+        ) {
 
-        triggerLastPrice:
-          initialTriggerPrice,
+          return res.status(400).json({
+            success: false,
 
-        triggerArmedAt,
+            error:
+              "Maximum pyramid positions reached.",
+          });
 
-        triggerArmedPrice,
-      };
+        }
 
-      // ======================================================
-      // TRADE LIFECYCLE CALLBACKS
-      // ======================================================
+        const tradeNumber =
+          bot.currentPositionCount +
+          1;
 
-      bot.onTradeProfit =
-        async (finalPnl) => {
+        const isFirstEntry =
+          tradeNumber === 1;
 
-        console.log(
-          `[Bot:${bot.symbol}] ` +
-          `TRADE CYCLE PROFIT | ` +
-          `P/L=${finalPnl} | RESET`
-        );
+        try {
 
-        tradeLifecycle.stop(
-          bot.id
-        );
+          // ====================================================
+          // OPEN
+          // ====================================================
 
-        // --------------------------------------------------
-        // RESET TRADE STATE
-        // --------------------------------------------------
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `ENTER ${bot.direction} | ` +
+            `Trade #${tradeNumber}`
+          );
 
-        bot.currentPositionCount =
-          0;
+          const openResult =
+            await orders.openTestPosition(
+              bot.symbol,
+              bot.direction
+            );
 
-        bot.firstEntryPrice =
-          null;
+          // ====================================================
+          // ENTRY MODEL CONTINUES
+          // ====================================================
 
-        bot.averageEntryPrice =
-          null;
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `POSITION OPENED | ` +
+            `Entry Model CONTINUES | ` +
+            `Trade #${tradeNumber}`
+          );
 
-        bot.originalStopLoss =
-          null;
+          // ====================================================
+          // TRADE
+          // ====================================================
 
-        bot.currentTakeProfit =
-          null;
+          const trade = {
 
-        bot.currentTpOrderId =
-          null;
+            tradeNumber,
 
-        bot.trades =
-          [];
-
-        bot.status =
-          "ACTIVE";
-
-        // --------------------------------------------------
-        // RESTART ENTRY MODEL
-        //
-        // New trade cycle starts ONLY after
-        // previous cycle finished in PROFIT.
-        // --------------------------------------------------
-
-        console.log(
-          `[Bot:${bot.symbol}] ` +
-          `PROFIT RESET COMPLETE | ` +
-          `RESTARTING ENTRY MODEL`
-        );
-
-        await entryModelEngine.startEngine(
-          bot
-        );
-
-        console.log(
-          `[Bot:${bot.symbol}] ` +
-          `NEW TRADE CYCLE READY`
-        );
-      };
-
-      bot.onTradeLoss =
-        async (finalPnl) => {
-
-        console.log(
-          `[Bot:${bot.symbol}] ` +
-          `TRADE CYCLE LOSS | ` +
-          `P/L=${finalPnl} | KILL`
-        );
-
-        tradeLifecycle.stop(
-          bot.id
-        );
-
-        bot.status =
-          "KILLED";
-
-        console.log(
-          `[Bot:${bot.symbol}] ` +
-          `BOT KILLED`
-        );
-      };
-
-      bot.onTradeFlat =
-        async (finalPnl) => {
-
-        console.log(
-          `[Bot:${bot.symbol}] ` +
-          `TRADE CYCLE ZERO | ` +
-          `P/L=${finalPnl} | RESET`
-        );
-
-        tradeLifecycle.stop(
-          bot.id
-        );
-
-        bot.currentPositionCount =
-          0;
-
-        bot.firstEntryPrice =
-          null;
-
-        bot.averageEntryPrice =
-          null;
-
-        bot.originalStopLoss =
-          null;
-
-        bot.currentTakeProfit =
-          null;
-
-        bot.currentTpOrderId =
-          null;
-
-        bot.trades =
-          [];
-
-        bot.status =
-          "ACTIVE";
-      };
-
-      bots.push(
-        bot
-      );
-
-      // ======================================================
-      // CREATE SERVER-SIDE TRADE CYCLE
-      // ======================================================
-
-      const cycle =
-        tradeCycleManager.create(
-          bot.id,
-          {
             direction:
               bot.direction,
 
-            position:
-              null,
+            openedAt:
+              new Date().toISOString(),
+
+            openResult,
+
+            stopLoss:
+              bot.stopLoss,
+
+            takeProfit:
+              bot.takeProfit,
+
+            status:
+              "OPEN",
+          };
+
+          bot.trades.push(
+            trade
+          );
+
+          bot.currentPositionCount =
+            tradeNumber;
+
+          // ====================================================
+          // START TRADE LIFECYCLE
+          // ====================================================
+
+          if (
+            isFirstEntry
+          ) {
+
+            tradeLifecycle.start(
+              bot
+            );
+
           }
-        );
 
-      bot.cycleId =
-        bot.id;
-
-      console.log(
-        `[Bot:${bot.symbol}] ` +
-        `Trade cycle created | ` +
-        `Cycle=${cycle.botId}`
-      );
-
-      // ======================================================
-      // LOG
-      // ======================================================
-
-      console.log(
-        `[Bot] Created ${bot.name} | ` +
-        `${bot.symbol} | ` +
-        `${bot.direction} | ` +
-        `Pyramid=${bot.pyramidPositions}`
-      );
-
-      console.log(
-        `[Bot] Trigger | ` +
-        `Enabled=${bot.triggerLineEnabled} | ` +
-        `Price=${bot.triggerLinePrice} | ` +
-        `State=${bot.triggerState} | ` +
-        `Baseline=${bot.triggerLastPrice}`
-      );
-
-      // ======================================================
-      // START TRIGGER MONITOR
-      // ======================================================
-
-      if (
-        bot.triggerLineEnabled === true &&
-        bot.triggerState === "NEUTRAL"
-      ) {
-
-        startTriggerMonitor(
-          bot
-        );
-
-      }
-
-      return res.status(201).json({
-        success:
-          true,
-
-        bot,
-      });
-
-    } catch (error) {
-
-      console.error(
-        "[Bot] Create error:",
-        error
-      );
-
-      return res.status(500).json({
-        success:
-          false,
-
-        error:
-          error.message,
-      });
-
-    }
-
-  });
-
-  // ==========================================================
-  // ENTER
-  // ==========================================================
-
-  router.post("/:id/enter", async (req, res) => {
-
-    const bot =
-      bots.find(
-        (item) =>
-          item.id === req.params.id
-      );
-
-    if (!bot) {
-
-      return res.status(404).json({
-        success: false,
-        error: "Bot not found",
-      });
-
-    }
-
-    // --------------------------------------------------------
-    // BOT STATUS
-    // --------------------------------------------------------
-
-    if (
-      bot.status !== "ACTIVE"
-    ) {
-
-      return res.status(400).json({
-        success: false,
-        error: "Bot is not active",
-      });
-
-    }
-
-    // --------------------------------------------------------
-    // TRIGGER GATE
-    // --------------------------------------------------------
-
-    if (
-      bot.triggerLineEnabled === true &&
-      bot.triggerState === "NEUTRAL"
-    ) {
-
-      return res.status(400).json({
-        success: false,
-
-        error:
-          "ENTRY BLOCKED — Bot is NEUTRAL. Trigger Line has not been activated.",
-
-        triggerState:
-          bot.triggerState,
-
-        triggerLinePrice:
-          bot.triggerLinePrice,
-      });
-
-    }
-
-    // --------------------------------------------------------
-    // TP/SL TIMER
-    // --------------------------------------------------------
-
-    if (
-      botTimers.has(
-        bot.id
-      )
-    ) {
-
-      return res.status(400).json({
-        success: false,
-
-        error:
-          "TP/SL protection is still being prepared for the previous entry.",
-      });
-
-    }
-
-    // --------------------------------------------------------
-    // PYRAMID LIMIT
-    // --------------------------------------------------------
-
-    if (
-      bot.currentPositionCount >=
-      bot.maxPositions
-    ) {
-
-      return res.status(400).json({
-        success: false,
-
-        error:
-          "Maximum pyramid positions reached.",
-      });
-
-    }
-
-    const tradeNumber =
-      bot.currentPositionCount + 1;
-
-    const isFirstEntry =
-      tradeNumber === 1;
-
-    try {
-
-      // ======================================================
-      // OPEN
-      // ======================================================
-
-      console.log(
-        `[Bot:${bot.symbol}] ` +
-        `ENTER ${bot.direction} | ` +
-        `Trade #${tradeNumber}`
-      );
-
-      const openResult =
-        await orders.openTestPosition(
-          bot.symbol,
-          bot.direction
-        );
-
-      // ======================================================
-      // IMPORTANT
-      //
-      // REAL POSITION IS NOW OPEN.
-      //
-      // Entry Model MUST CONTINUE RUNNING.
-      //
-      // The pyramid gate above decides whether another
-      // entry may actually be executed.
-      //
-      // Therefore:
-      //   Entry #1 -> Entry Model continues
-      //   Entry #2 -> Entry Model continues
-      //   Entry #3 -> Entry Model continues
-      //   Entry #4 -> blocked by maxPositions
-      //
-      // We do NOT stop the engine here.
-      // ======================================================
-
-      console.log(
-        `[Bot:${bot.symbol}] ` +
-        `POSITION OPENED | ` +
-        `Entry Model CONTINUES | ` +
-        `Trade #${tradeNumber}`
-      );
-
-      // ======================================================
-      // TRADE
-      // ======================================================
-
-      const trade = {
-
-        tradeNumber,
-
-        direction:
-          bot.direction,
-
-        openedAt:
-          new Date().toISOString(),
-
-        openResult,
-
-        stopLoss:
-          bot.stopLoss,
-
-        takeProfit:
-          bot.takeProfit,
-
-        status:
-          "OPEN",
-      };
-
-      bot.trades.push(
-        trade
-      );
-
-      bot.currentPositionCount =
-        tradeNumber;
-
-      // ======================================================
-      // START TRADE LIFECYCLE
-      //
-      // ONLY FIRST ENTRY.
-      //
-      // Pyramid #2 / #3 use the SAME lifecycle.
-      // ======================================================
-
-      if (isFirstEntry) {
-
-        tradeLifecycle.start(
-          bot
-        );
-
-      }
-
-      // ======================================================
-      // TP/SL 30 SECOND DELAY
-      // ======================================================
-
-      console.log(
-        `[Bot:${bot.symbol}] ` +
-        `TP/SL sync scheduled in 30 seconds | ` +
-        `Trade #${tradeNumber}`
-      );
-
-      const timer =
-        setTimeout(
-          async () => {
-
-            try {
-
-              console.log(
-                `[Bot:${bot.symbol}] ` +
-                `30s TP/SL sync START | ` +
-                `Trade #${tradeNumber}`
-              );
-
-              // ==============================================
-              // UPDATE TP/SL
-              // ==============================================
-
-              const tpSlResult =
-                await orders.updateTestTpSl(
-                  bot.symbol,
-                  bot.stopLoss,
-                  bot.takeProfit,
-                  {
-                    keepOriginalSl:
-                      !isFirstEntry,
-
-                    originalStopLoss:
-                      bot.originalStopLoss,
-
-                    previousTpOrderId:
-                      bot.currentTpOrderId,
-                  }
-                );
-
-              console.log(
-                `[Bot:${bot.symbol}] ` +
-                `TP/SL sync result:`,
-                tpSlResult
-              );
-
-              // ==============================================
-              // GET LIVE POSITION
-              // ==============================================
-
-              let livePosition =
-                null;
-
-              try {
-
-                const allPositions =
-                  await positions.getAll();
-
-                if (
-                  Array.isArray(
-                    allPositions
-                  )
-                ) {
-
-                  livePosition =
-                    allPositions.find(
-                      (position) => {
-
-                        const positionSymbol =
-                          String(
-                            position.symbol ||
-                            position.contract ||
-                            ""
-                          ).toUpperCase();
-
-                        return (
-                          positionSymbol ===
-                          bot.symbol
-                        );
-
+          // ====================================================
+          // TP/SL 30 SECOND DELAY
+          // ====================================================
+
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `TP/SL sync scheduled in 30 seconds | ` +
+            `Trade #${tradeNumber}`
+          );
+
+          const timer =
+            setTimeout(
+              async () => {
+
+                try {
+
+                  console.log(
+                    `[Bot:${bot.symbol}] ` +
+                    `30s TP/SL sync START | ` +
+                    `Trade #${tradeNumber}`
+                  );
+
+                  // ==========================================
+                  // UPDATE TP/SL
+                  // ==========================================
+
+                  const tpSlResult =
+                    await orders.updateTestTpSl(
+                      bot.symbol,
+                      bot.stopLoss,
+                      bot.takeProfit,
+                      {
+                        keepOriginalSl:
+                          !isFirstEntry,
+
+                        originalStopLoss:
+                          bot.originalStopLoss,
+
+                        previousTpOrderId:
+                          bot.currentTpOrderId,
                       }
                     );
 
-                }
-
-              } catch (positionError) {
-
-                console.error(
-                  `[Bot:${bot.symbol}] ` +
-                  `Position sync failed:`,
-                  positionError.message
-                );
-
-              }
-
-              // ==============================================
-              // ENTRY PRICE
-              // ==============================================
-
-              const liveAverageEntry =
-                livePosition
-                  ? cleanNumber(
-                      livePosition.avgEntryPrice ??
-                      livePosition.averageEntryPrice ??
-                      livePosition.entryPrice,
-                      0
-                    )
-                  : 0;
-
-              const liveEntryPrice =
-                liveAverageEntry > 0
-                  ? liveAverageEntry
-                  : cleanNumber(
-                      openResult?.entryPrice ??
-                      openResult?.price ??
-                      openResult?.data?.entryPrice ??
-                      openResult?.data?.price,
-                      0
-                    );
-
-              // ==============================================
-              // FIRST ENTRY
-              // ==============================================
-
-              if (isFirstEntry) {
-
-                bot.firstEntryPrice =
-                  liveEntryPrice > 0
-                    ? liveEntryPrice
-                    : null;
-
-                bot.originalStopLoss =
-                  bot.stopLoss;
-
-              }
-
-              // ==============================================
-              // AVERAGE ENTRY
-              // ==============================================
-
-              bot.averageEntryPrice =
-                liveEntryPrice > 0
-                  ? liveEntryPrice
-                  : bot.averageEntryPrice;
-
-              // ==============================================
-              // CURRENT TP
-              // ==============================================
-
-              bot.currentTakeProfit =
-                bot.takeProfit;
-
-              // ==============================================
-              // TP ORDER ID
-              // ==============================================
-
-              if (
-                tpSlResult &&
-                tpSlResult.tpOrderId !==
-                  undefined &&
-                tpSlResult.tpOrderId !==
-                  null
-              ) {
-
-                bot.currentTpOrderId =
-                  String(
-                    tpSlResult.tpOrderId
+                  console.log(
+                    `[Bot:${bot.symbol}] ` +
+                    `TP/SL sync result:`,
+                    tpSlResult
                   );
 
-              }
+                  // ==========================================
+                  // GET LIVE POSITION
+                  // ==========================================
 
-              // ==============================================
-              // UPDATE TRADE
-              // ==============================================
+                  let livePosition =
+                    null;
 
-              trade.entryPrice =
-                bot.averageEntryPrice;
+                  try {
 
-              trade.stopLoss =
-                bot.originalStopLoss;
+                    const allPositions =
+                      await positions.getAll();
 
-              trade.takeProfit =
-                bot.currentTakeProfit;
+                    if (
+                      Array.isArray(
+                        allPositions
+                      )
+                    ) {
 
-              trade.tpOrderId =
-                bot.currentTpOrderId;
+                      livePosition =
+                        allPositions.find(
+                          (position) => {
 
-              trade.protectionSyncedAt =
-                new Date().toISOString();
+                            const positionSymbol =
+                              String(
+                                position.symbol ||
+                                position.contract ||
+                                ""
+                              ).toUpperCase();
 
-              console.log(
-                `[Bot:${bot.symbol}] ` +
-                `TP/SL protection synced | ` +
-                `Trade #${tradeNumber} | ` +
-                `Entry=${bot.averageEntryPrice} | ` +
-                `SL=${trade.stopLoss} | ` +
-                `TP=${trade.takeProfit} | ` +
-                `TPOrder=${trade.tpOrderId}`
+                            return (
+                              positionSymbol ===
+                              bot.symbol
+                            );
+
+                          }
+                        );
+
+                    }
+
+                  } catch (
+                    positionError
+                  ) {
+
+                    console.error(
+                      `[Bot:${bot.symbol}] ` +
+                      `Position sync failed:`,
+                      positionError.message
+                    );
+
+                  }
+
+                  // ==========================================
+                  // ENTRY PRICE
+                  // ==========================================
+
+                  const liveAverageEntry =
+                    livePosition
+                      ? cleanNumber(
+                          livePosition.avgEntryPrice ??
+                          livePosition.averageEntryPrice ??
+                          livePosition.entryPrice,
+                          0
+                        )
+                      : 0;
+
+                  const liveEntryPrice =
+                    liveAverageEntry > 0
+                      ? liveAverageEntry
+                      : cleanNumber(
+                          openResult?.entryPrice ??
+                          openResult?.price ??
+                          openResult?.data?.entryPrice ??
+                          openResult?.data?.price,
+                          0
+                        );
+
+                  // ==========================================
+                  // FIRST ENTRY
+                  // ==========================================
+
+                  if (
+                    isFirstEntry
+                  ) {
+
+                    bot.firstEntryPrice =
+                      liveEntryPrice > 0
+                        ? liveEntryPrice
+                        : null;
+
+                    bot.originalStopLoss =
+                      bot.stopLoss;
+
+                  }
+
+                  // ==========================================
+                  // AVERAGE ENTRY
+                  // ==========================================
+
+                  bot.averageEntryPrice =
+                    liveEntryPrice > 0
+                      ? liveEntryPrice
+                      : bot.averageEntryPrice;
+
+                  // ==========================================
+                  // CURRENT TP
+                  // ==========================================
+
+                  bot.currentTakeProfit =
+                    bot.takeProfit;
+
+                  // ==========================================
+                  // TP ORDER ID
+                  // ==========================================
+
+                  if (
+                    tpSlResult &&
+                    tpSlResult.tpOrderId !==
+                      undefined &&
+                    tpSlResult.tpOrderId !==
+                      null
+                  ) {
+
+                    bot.currentTpOrderId =
+                      String(
+                        tpSlResult.tpOrderId
+                      );
+
+                  }
+
+                  // ==========================================
+                  // UPDATE TRADE
+                  // ==========================================
+
+                  trade.entryPrice =
+                    bot.averageEntryPrice;
+
+                  trade.stopLoss =
+                    bot.originalStopLoss;
+
+                  trade.takeProfit =
+                    bot.currentTakeProfit;
+
+                  trade.tpOrderId =
+                    bot.currentTpOrderId;
+
+                  trade.protectionSyncedAt =
+                    new Date().toISOString();
+
+                  console.log(
+                    `[Bot:${bot.symbol}] ` +
+                    `TP/SL protection synced | ` +
+                    `Trade #${tradeNumber} | ` +
+                    `Entry=${bot.averageEntryPrice} | ` +
+                    `SL=${trade.stopLoss} | ` +
+                    `TP=${trade.takeProfit} | ` +
+                    `TPOrder=${trade.tpOrderId}`
+                  );
+
+                } catch (error) {
+
+                  console.error(
+                    `[Bot:${bot.symbol}] ` +
+                    `TP/SL sync ERROR:`,
+                    error
+                  );
+
+                } finally {
+
+                  botTimers.delete(
+                    bot.id
+                  );
+
+                }
+
+              },
+              TP_SL_DELAY_MS
+            );
+
+          botTimers.set(
+            bot.id,
+            timer
+          );
+
+          return res.json({
+
+            success:
+              true,
+
+            bot,
+
+            trade,
+
+            triggerState:
+              bot.triggerState,
+
+            triggerLinePrice:
+              bot.triggerLinePrice,
+
+          });
+
+        } catch (error) {
+
+          console.error(
+            `[Bot:${bot.symbol}] ENTER ERROR:`,
+            error
+          );
+
+          return res.status(500).json({
+            success:
+              false,
+
+            error:
+              error.message,
+          });
+
+        }
+
+      }
+    );
+
+    // ==========================================================
+    // CLOSE
+    // ==========================================================
+
+    router.post(
+      "/:id/close",
+      async (req, res) => {
+
+        const bot =
+          bots.find(
+            (item) =>
+              item.id ===
+              req.params.id
+          );
+
+        if (!bot) {
+
+          return res.status(404).json({
+            success:
+              false,
+
+            error:
+              "Bot not found",
+          });
+
+        }
+
+        try {
+
+          // ----------------------------------------------------
+          // CANCEL TP/SL TIMER
+          // ----------------------------------------------------
+
+          const timer =
+            botTimers.get(
+              bot.id
+            );
+
+          if (timer) {
+
+            clearTimeout(
+              timer
+            );
+
+            botTimers.delete(
+              bot.id
+            );
+
+          }
+
+          // ----------------------------------------------------
+          // CLOSE POSITION
+          // ----------------------------------------------------
+
+          const closeResult =
+            await orders.closeTestPosition(
+              bot.symbol
+            );
+
+          // ----------------------------------------------------
+          // CANCEL TRACKED TP
+          // ----------------------------------------------------
+
+          if (
+            bot.currentTpOrderId &&
+            typeof orders.cancelTpOrder ===
+              "function"
+          ) {
+
+            try {
+
+              await orders.cancelTpOrder(
+                bot.currentTpOrderId
               );
 
             } catch (error) {
 
               console.error(
                 `[Bot:${bot.symbol}] ` +
-                `TP/SL sync ERROR:`,
-                error
-              );
-
-            } finally {
-
-              botTimers.delete(
-                bot.id
+                `TP cancel failed:`,
+                error.message
               );
 
             }
 
-          },
-          TP_SL_DELAY_MS
-        );
+          }
 
-      botTimers.set(
-        bot.id,
-        timer
-      );
+          // ----------------------------------------------------
+          // LIFECYCLE FINALIZES
+          // ----------------------------------------------------
 
-      return res.json({
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `CLOSE REQUEST SENT | ` +
+            `Lifecycle will finalize after FLAT | ` +
+            `TriggerState=${bot.triggerState}`
+          );
 
-        success:
-          true,
+          return res.json({
 
-        bot,
+            success:
+              true,
 
-        trade,
+            closeResult,
 
-        triggerState:
-          bot.triggerState,
+            bot,
 
-        triggerLinePrice:
-          bot.triggerLinePrice,
+            triggerState:
+              bot.triggerState,
 
-      });
+          });
 
-    } catch (error) {
+        } catch (error) {
 
-      console.error(
-        `[Bot:${bot.symbol}] ENTER ERROR:`,
-        error
-      );
+          console.error(
+            `[Bot:${bot.symbol}] CLOSE ERROR:`,
+            error
+          );
 
-      return res.status(500).json({
-        success:
-          false,
+          return res.status(500).json({
 
-        error:
-          error.message,
-      });
+            success:
+              false,
 
-    }
+            error:
+              error.message,
 
-  });
+          });
 
-  // ==========================================================
-  // CLOSE
-  // ==========================================================
-
-  router.post("/:id/close", async (req, res) => {
-
-    const bot =
-      bots.find(
-        (item) =>
-          item.id === req.params.id
-      );
-
-    if (!bot) {
-
-      return res.status(404).json({
-        success:
-          false,
-
-        error:
-          "Bot not found",
-      });
-
-    }
-
-    try {
-
-      // ------------------------------------------------------
-      // CANCEL TP/SL TIMER
-      // ------------------------------------------------------
-
-      const timer =
-        botTimers.get(
-          bot.id
-        );
-
-      if (timer) {
-
-        clearTimeout(
-          timer
-        );
-
-        botTimers.delete(
-          bot.id
-        );
+        }
 
       }
+    );
 
-      // ------------------------------------------------------
-      // CLOSE POSITION
-      // ------------------------------------------------------
+    // ==========================================================
+    // PAUSE
+    // ==========================================================
 
-      const closeResult =
-        await orders.closeTestPosition(
-          bot.symbol
-        );
+    router.post(
+      "/:id/pause",
+      (req, res) => {
 
-      // ------------------------------------------------------
-      // CANCEL TRACKED TP
-      // ------------------------------------------------------
+        const bot =
+          bots.find(
+            (item) =>
+              item.id ===
+              req.params.id
+          );
 
-      if (
-        bot.currentTpOrderId &&
-        typeof orders.cancelTpOrder ===
-          "function"
-      ) {
+        if (!bot) {
+
+          return res.status(404).json({
+            success:
+              false,
+
+            error:
+              "Bot not found",
+          });
+
+        }
+
+        bot.status =
+          "PAUSED";
+
+        return res.json({
+
+          success:
+            true,
+
+          bot,
+
+        });
+
+      }
+    );
+
+    // ==========================================================
+    // RESUME
+    // ==========================================================
+
+    router.post(
+      "/:id/resume",
+      (req, res) => {
+
+        const bot =
+          bots.find(
+            (item) =>
+              item.id ===
+              req.params.id
+          );
+
+        if (!bot) {
+
+          return res.status(404).json({
+            success:
+              false,
+
+            error:
+              "Bot not found",
+          });
+
+        }
+
+        bot.status =
+          "ACTIVE";
+
+        if (
+          bot.triggerLineEnabled ===
+            true &&
+          bot.triggerState ===
+            "NEUTRAL"
+        ) {
+
+          startTriggerMonitor(
+            bot
+          );
+
+        }
+
+        return res.json({
+
+          success:
+            true,
+
+          bot,
+
+        });
+
+      }
+    );
+
+    // ==========================================================
+    // ENTRY MODEL START
+    // ==========================================================
+
+    router.post(
+      "/:id/entry-model/start",
+      async (req, res) => {
+
+        const bot =
+          bots.find(
+            (item) =>
+              item.id ===
+              req.params.id
+          );
+
+        if (!bot) {
+
+          return res.status(404).json({
+            success: false,
+            error: "Bot not found",
+          });
+
+        }
+
+        // ------------------------------------------------------
+        // BOT STATUS
+        // ------------------------------------------------------
+
+        if (
+          bot.status !==
+          "ACTIVE"
+        ) {
+
+          return res.status(400).json({
+            success: false,
+            error:
+              `Cannot start Entry Model while bot status is ${bot.status}.`,
+          });
+
+        }
+
+        // ------------------------------------------------------
+        // TRIGGER GATE
+        // ------------------------------------------------------
+
+        if (
+          bot.triggerLineEnabled ===
+            true &&
+          bot.triggerState !==
+            "ARMED"
+        ) {
+
+          return res.status(400).json({
+            success: false,
+
+            error:
+              "Cannot start Entry Model — Bot is not ARMED.",
+
+            triggerState:
+              bot.triggerState,
+
+            triggerLinePrice:
+              bot.triggerLinePrice,
+          });
+
+        }
+
+        // ------------------------------------------------------
+        // POSITION GATE
+        // ------------------------------------------------------
+
+        if (
+          bot.currentPositionCount >
+          0
+        ) {
+
+          return res.status(400).json({
+            success: false,
+
+            error:
+              "Cannot start Entry Model while a position is open.",
+
+            currentPositionCount:
+              bot.currentPositionCount,
+          });
+
+        }
 
         try {
 
-          await orders.cancelTpOrder(
-            bot.currentTpOrderId
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `MANUAL ENTRY MODEL START`
           );
+
+          await entryModelEngine.startEngine(
+            bot
+          );
+
+          return res.json({
+
+            success:
+              true,
+
+            message:
+              "Entry Model started.",
+
+            bot,
+
+          });
 
         } catch (error) {
 
           console.error(
             `[Bot:${bot.symbol}] ` +
-            `TP cancel failed:`,
-            error.message
+            `ENTRY MODEL START ERROR:`,
+            error
           );
+
+          return res.status(500).json({
+
+            success:
+              false,
+
+            error:
+              error.message,
+
+          });
 
         }
 
       }
+    );
 
-      // ------------------------------------------------------
-      // IMPORTANT
-      //
-      // DO NOT RESET POSITION STATE HERE.
-      //
-      // TradeLifecycle must see:
-      //
-      // POSITION ACTIVE
-      //        ↓
-      // POSITION FLAT
-      //        ↓
-      // FINAL P/L
-      //        ↓
-      // RESET or KILL
-      //
-      // If we reset here, lifecycle loses the trade-cycle
-      // information before it can calculate the final P/L.
-      // ------------------------------------------------------
+    // ==========================================================
+    // ENTRY MODEL STOP
+    // ==========================================================
 
-      console.log(
-        `[Bot:${bot.symbol}] ` +
-        `CLOSE REQUEST SENT | ` +
-        `Lifecycle will finalize after FLAT | ` +
-        `TriggerState=${bot.triggerState}`
+    router.post(
+      "/:id/entry-model/stop",
+      (req, res) => {
+
+        const bot =
+          bots.find(
+            (item) =>
+              item.id ===
+              req.params.id
+          );
+
+        if (!bot) {
+
+          return res.status(404).json({
+            success: false,
+            error: "Bot not found",
+          });
+
+        }
+
+        try {
+
+          console.log(
+            `[Bot:${bot.symbol}] ` +
+            `MANUAL ENTRY MODEL STOP`
+          );
+
+          entryModelEngine.stopEngine(
+            bot.id
+          );
+
+          return res.json({
+
+            success:
+              true,
+
+            message:
+              "Entry Model stopped.",
+
+            bot,
+
+          });
+
+        } catch (error) {
+
+          console.error(
+            `[Bot:${bot.symbol}] ` +
+            `ENTRY MODEL STOP ERROR:`,
+            error
+          );
+
+          return res.status(500).json({
+
+            success:
+              false,
+
+            error:
+              error.message,
+
+          });
+
+        }
+
+      }
+    );
+
+    // ==========================================================
+    // DELETE
+    // ==========================================================
+
+    router.delete(
+      "/:id",
+      (req, res) => {
+
+        const index =
+          bots.findIndex(
+            (item) =>
+              item.id ===
+              req.params.id
+          );
+
+        if (index === -1) {
+
+          return res.status(404).json({
+            success:
+              false,
+
+            error:
+              "Bot not found",
+          });
+
+        }
+
+        const bot =
+          bots[index];
+
+        // ------------------------------------------------------
+        // STOP TP/SL TIMER
+        // ------------------------------------------------------
+
+        const tpTimer =
+          botTimers.get(
+            bot.id
+          );
+
+        if (tpTimer) {
+
+          clearTimeout(
+            tpTimer
+          );
+
+          botTimers.delete(
+            bot.id
+          );
+
+        }
+
+        // ------------------------------------------------------
+        // STOP TRIGGER TIMER
+        // ------------------------------------------------------
+
+        stopTriggerMonitor(
+          bot
+        );
+
+        // ------------------------------------------------------
+        // STOP TRADE LIFECYCLE
+        // ------------------------------------------------------
+
+        tradeLifecycle.stop(
+          bot.id
+        );
+
+        // ------------------------------------------------------
+        // STOP ENTRY MODEL
+        // ------------------------------------------------------
+
+        entryModelEngine.stopEngine(
+          bot.id
+        );
+
+        // ------------------------------------------------------
+        // STOP PRICE MODEL
+        // ------------------------------------------------------
+
+        const priceModel =
+          priceModelManager.get(
+            bot.id
+          );
+
+        if (priceModel) {
+
+          priceModel.stop();
+
+        }
+
+        priceModelManager.remove(
+          bot.id
+        );
+
+        // ------------------------------------------------------
+        // DELETE
+        // ------------------------------------------------------
+
+        bots.splice(
+          index,
+          1
+        );
+
+        console.log(
+          `[Bot] Deleted ${bot.name} | ${bot.symbol}`
+        );
+
+        return res.json({
+
+          success:
+            true,
+
+          deletedBotId:
+            bot.id,
+
+        });
+
+      }
+    );
+
+    // ==========================================================
+    // INTERNAL BOT ACCESS
+    // ==========================================================
+
+    router.getBot = (
+      botId
+    ) => {
+
+      return (
+        bots.find(
+          (bot) =>
+            bot.id === botId
+        ) || null
       );
 
-      return res.json({
+    };
 
-        success:
-          true,
+    // ==========================================================
+    // RETURN ROUTER
+    // ==========================================================
 
-        closeResult,
+    return router;
 
-        bot,
-
-        triggerState:
-          bot.triggerState,
-
-      });
-
-    } catch (error) {
-
-      console.error(
-        `[Bot:${bot.symbol}] CLOSE ERROR:`,
-        error
-      );
-
-      return res.status(500).json({
-
-        success:
-          false,
-
-        error:
-          error.message,
-
-      });
-
-    }
-
-  });
-
-  // ==========================================================
-  // PAUSE
-  // ==========================================================
-
-  router.post("/:id/pause", (req, res) => {
-
-    const bot =
-      bots.find(
-        (item) =>
-          item.id === req.params.id
-      );
-
-    if (!bot) {
-
-      return res.status(404).json({
-        success:
-          false,
-
-        error:
-          "Bot not found",
-      });
-
-    }
-
-    bot.status =
-      "PAUSED";
-
-    return res.json({
-
-      success:
-        true,
-
-      bot,
-
-    });
-
-  });
-
-  // ==========================================================
-  // RESUME
-  // ==========================================================
-
-  router.post("/:id/resume", (req, res) => {
-
-    const bot =
-      bots.find(
-        (item) =>
-          item.id === req.params.id
-      );
-
-    if (!bot) {
-
-      return res.status(404).json({
-        success:
-          false,
-
-        error:
-          "Bot not found",
-      });
-
-    }
-
-    bot.status =
-      "ACTIVE";
-
-    if (
-      bot.triggerLineEnabled === true &&
-      bot.triggerState === "NEUTRAL"
-    ) {
-
-      startTriggerMonitor(
-        bot
-      );
-
-    }
-
-    return res.json({
-
-      success:
-        true,
-
-      bot,
-
-    });
-
-  });
-
-// ==========================================================
-// ENTRY MODEL START
-// ==========================================================
-
-router.post("/:id/entry-model/start", async (req, res) => {
-
-  const bot =
-    bots.find(
-      (item) =>
-        item.id === req.params.id
-    );
-
-  if (!bot) {
-
-    return res.status(404).json({
-      success: false,
-      error: "Bot not found",
-    });
-
-  }
-
-  // --------------------------------------------------------
-  // BOT STATUS
-  // --------------------------------------------------------
-
-  if (
-    bot.status !== "ACTIVE"
-  ) {
-
-    return res.status(400).json({
-      success: false,
-      error:
-        `Cannot start Entry Model while bot status is ${bot.status}.`,
-    });
-
-  }
-
-  // --------------------------------------------------------
-  // TRIGGER GATE
-  // --------------------------------------------------------
-
-  if (
-    bot.triggerLineEnabled === true &&
-    bot.triggerState !== "ARMED"
-  ) {
-
-    return res.status(400).json({
-      success: false,
-
-      error:
-        "Cannot start Entry Model — Bot is not ARMED.",
-
-      triggerState:
-        bot.triggerState,
-
-      triggerLinePrice:
-        bot.triggerLinePrice,
-    });
-
-  }
-
-  // --------------------------------------------------------
-  // POSITION GATE
-  // --------------------------------------------------------
-  //
-  // Manual START is still blocked while a trade is open.
-  //
-  // Automatic Entry Model continuation after Entry #1/#2
-  // does NOT use this route.
-  //
-  // --------------------------------------------------------
-
-  if (
-    bot.currentPositionCount > 0
-  ) {
-
-    return res.status(400).json({
-      success: false,
-
-      error:
-        "Cannot start Entry Model while a position is open.",
-
-      currentPositionCount:
-        bot.currentPositionCount,
-    });
-
-  }
-
-  try {
-
-    console.log(
-      `[Bot:${bot.symbol}] ` +
-      `MANUAL ENTRY MODEL START`
-    );
-
-    await entryModelEngine.startEngine(
-      bot
-    );
-
-    return res.json({
-
-      success:
-        true,
-
-      message:
-        "Entry Model started.",
-
-      bot,
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      `[Bot:${bot.symbol}] ` +
-      `ENTRY MODEL START ERROR:`,
-      error
-    );
-
-    return res.status(500).json({
-
-      success:
-        false,
-
-      error:
-        error.message,
-
-    });
-
-  }
-
-});
-
-// ==========================================================
-// ENTRY MODEL STOP
-// ==========================================================
-
-router.post("/:id/entry-model/stop", (req, res) => {
-
-  const bot =
-    bots.find(
-      (item) =>
-        item.id === req.params.id
-    );
-
-  if (!bot) {
-
-    return res.status(404).json({
-      success: false,
-      error: "Bot not found",
-    });
-
-  }
-
-  try {
-
-    console.log(
-      `[Bot:${bot.symbol}] ` +
-      `MANUAL ENTRY MODEL STOP`
-    );
-
-    entryModelEngine.stopEngine(
-      bot.id
-    );
-
-    return res.json({
-
-      success:
-        true,
-
-      message:
-        "Entry Model stopped.",
-
-      bot,
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      `[Bot:${bot.symbol}] ` +
-      `ENTRY MODEL STOP ERROR:`,
-      error
-    );
-
-    return res.status(500).json({
-
-      success:
-        false,
-
-      error:
-        error.message,
-
-    });
-
-  }
-
-});
-
-// ==========================================================
-// DELETE
-// ==========================================================
-
-router.delete("/:id", (req, res) => {
-
-  const index =
-    bots.findIndex(
-      (item) =>
-        item.id === req.params.id
-    );
-
-  if (index === -1) {
-
-    return res.status(404).json({
-      success:
-        false,
-
-      error:
-        "Bot not found",
-    });
-
-  }
-
-  const bot =
-    bots[index];
-
-  // --------------------------------------------------------
-  // STOP TP/SL TIMER
-  // --------------------------------------------------------
-
-  const tpTimer =
-    botTimers.get(
-      bot.id
-    );
-
-  if (tpTimer) {
-
-    clearTimeout(
-      tpTimer
-    );
-
-    botTimers.delete(
-      bot.id
-    );
-
-  }
-
-  // --------------------------------------------------------
-  // STOP TRIGGER TIMER
-  // --------------------------------------------------------
-
-  stopTriggerMonitor(
-    bot
-  );
-
-  // --------------------------------------------------------
-  // STOP TRADE LIFECYCLE
-  // --------------------------------------------------------
-
-  tradeLifecycle.stop(
-    bot.id
-  );
-
-  // --------------------------------------------------------
-  // STOP ENTRY MODEL
-  // --------------------------------------------------------
-
-  entryModelEngine.stopEngine(
-    bot.id
-  );
-
-  // --------------------------------------------------------
-  // DELETE
-  // --------------------------------------------------------
-
-  bots.splice(
-    index,
-    1
-  );
-
-  console.log(
-    `[Bot] Deleted ${bot.name} | ${bot.symbol}`
-  );
-
-  return res.json({
-
-    success:
-      true,
-
-    deletedBotId:
-      bot.id,
-
-  });
-
-});
-
-// ==========================================================
-// INTERNAL BOT ACCESS
-// ==========================================================
-
-router.getBot = (
-  botId
-) => {
-
-  return bots.find(
-    (bot) =>
-      bot.id === botId
-  ) || null;
-
-};
-
-// ==========================================================
-// RETURN ROUTER
-// ==========================================================
-
-return router;
-};
+  };
 

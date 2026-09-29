@@ -12,6 +12,7 @@ import TradeTest from "./pages/TradeTest";
 import ChartBot from "./pages/ChartBot";
 import BotManagement from "./pages/BotManagement";
 import EntryModel from "./pages/EntryModel";
+import EntryModelPrice from "./pages/EntryModelPrice";
 
 // ============================================================
 // APP
@@ -64,6 +65,13 @@ function App() {
               path="/entry-model"
               element={
                 <EntryModel />
+              }
+            />
+
+            <Route
+              path="/entry-model-price"
+              element={
+                <EntryModelPrice />
               }
             />
 

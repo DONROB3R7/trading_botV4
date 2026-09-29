@@ -1,0 +1,874 @@
+/* ============================================================
+   ENTRY MODEL PRICE PAGE
+
+   Same colors/style as Entry Model
+   Fully isolated from EntryModel.css
+   ============================================================ */
+
+.entry-model-page-price {
+
+  width: 100%;
+
+  max-width: 1400px;
+
+  margin: 0 auto;
+
+  padding: 30px;
+
+  box-sizing: border-box;
+
+}
+
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.entry-model-page-price .entry-model-header {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: flex-end;
+
+  gap: 20px;
+
+  margin-bottom: 18px;
+
+}
+
+.entry-model-page-price .entry-model-header h1 {
+
+  margin: 0;
+
+  color: #f8fafc;
+
+  font-size: 28px;
+
+}
+
+.entry-model-page-price .entry-model-subtitle {
+
+  margin-top: 7px;
+
+  color: #60a5fa;
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+}
+
+
+/* ============================================================
+   CONTROLS
+   ============================================================ */
+
+.entry-model-page-price .entry-model-controls {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+}
+
+.entry-model-page-price .entry-model-controls select {
+
+  height: 38px;
+
+  min-width: 200px;
+
+  padding: 0 12px;
+
+  background: #0d1728;
+
+  color: #f8fafc;
+
+  border: 1px solid #294467;
+
+  border-radius: 6px;
+
+  outline: none;
+
+  cursor: pointer;
+
+}
+
+.entry-model-page-price .entry-model-controls select:focus {
+
+  border-color: #3b82f6;
+
+}
+
+.entry-model-page-price .entry-model-controls button {
+
+  height: 38px;
+
+  min-width: 70px;
+
+  padding: 0 14px;
+
+  background: #0d1728;
+
+  border: 1px solid #294467;
+
+  border-radius: 6px;
+
+  color: #60a5fa;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+}
+
+.entry-model-page-price .entry-model-controls button:hover:not(:disabled) {
+
+  background: #13233a;
+
+  border-color: #3b82f6;
+
+  color: #93c5fd;
+
+}
+
+.entry-model-page-price .entry-model-controls button:disabled {
+
+  opacity: 0.5;
+
+  cursor: not-allowed;
+
+}
+
+
+/* ============================================================
+   MESSAGE
+   ============================================================ */
+
+.entry-model-page-price .entry-model-message {
+
+  margin-bottom: 16px;
+
+  padding: 12px 16px;
+
+  background: #10251b;
+
+  border: 1px solid #166534;
+
+  border-radius: 6px;
+
+  color: #86efac;
+
+  font-size: 13px;
+
+}
+
+
+/* ============================================================
+   ERROR
+   ============================================================ */
+
+.entry-model-page-price .entry-model-error {
+
+  margin-bottom: 16px;
+
+  padding: 12px 16px;
+
+  background: #32151a;
+
+  border: 1px solid #7f1d1d;
+
+  border-radius: 6px;
+
+  color: #fca5a5;
+
+  font-size: 13px;
+
+}
+
+
+/* ============================================================
+   BOT INFO
+   ============================================================ */
+
+.entry-model-page-price .entry-model-info {
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(6, minmax(0, 1fr));
+
+  gap: 1px;
+
+  margin-bottom: 18px;
+
+  background: #1e3150;
+
+  border: 1px solid #1e3150;
+
+  border-radius: 10px;
+
+  overflow: hidden;
+
+}
+
+.entry-model-page-price .entry-model-info > div {
+
+  min-width: 0;
+
+  padding: 14px 16px;
+
+  background: #0d1728;
+
+}
+
+.entry-model-page-price .entry-model-info span {
+
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: #64748b;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.5px;
+
+}
+
+.entry-model-page-price .entry-model-info strong {
+
+  display: block;
+
+  overflow: hidden;
+
+  color: #e2e8f0;
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+}
+
+.entry-model-page-price .entry-model-info strong.long {
+
+  color: #86efac;
+
+}
+
+.entry-model-page-price .entry-model-info strong.short {
+
+  color: #fca5a5;
+
+}
+
+.entry-model-page-price .entry-model-info strong.neutral {
+
+  color: #fbbf24;
+
+}
+
+
+/* ============================================================
+   SECTION
+   ============================================================ */
+
+.entry-model-page-price .entry-model-section {
+
+  margin-bottom: 18px;
+
+  background: #0d1728;
+
+  border: 1px solid #1e3150;
+
+  border-radius: 10px;
+
+  overflow: hidden;
+
+}
+
+
+/* ============================================================
+   SECTION HEADER
+   ============================================================ */
+
+.entry-model-page-price .entry-model-section-header {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  min-height: 50px;
+
+  padding: 0 18px;
+
+  border-bottom: 1px solid #1b2b43;
+
+}
+
+.entry-model-page-price .entry-model-section-header h2 {
+
+  margin: 0;
+
+  color: #e2e8f0;
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+}
+
+.entry-model-page-price .entry-model-section-header > div {
+
+  color: #64748b;
+
+  font-size: 11px;
+
+  font-weight: 500;
+
+}
+
+
+/* ============================================================
+   REAL CANDLESTICK CHART
+   ============================================================ */
+
+.entry-model-page-price .entry-model-chart {
+
+  width: 100%;
+
+  height: 430px;
+
+  min-height: 430px;
+
+  background: #0d1728;
+
+  box-sizing: border-box;
+
+}
+
+
+/* ============================================================
+   PULLBACK WINDOW GRID
+   ============================================================ */
+
+.entry-model-page-price .entry-model-grid {
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(5, minmax(0, 1fr));
+
+  gap: 12px;
+
+  padding: 16px;
+
+}
+
+
+/* ============================================================
+   WINDOW CARD
+   ============================================================ */
+
+.entry-model-page-price .entry-model-card {
+
+  min-width: 0;
+
+  padding: 16px;
+
+  box-sizing: border-box;
+
+  background: #101d31;
+
+  border: 1px solid #1e3150;
+
+  border-radius: 8px;
+
+}
+
+.entry-model-page-price .entry-model-card:hover {
+
+  border-color: #294467;
+
+}
+
+.entry-model-page-price .entry-model-card-title {
+
+  margin-bottom: 12px;
+
+  color: #94a3b8;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.5px;
+
+}
+
+.entry-model-page-price .entry-model-card-value {
+
+  margin-bottom: 14px;
+
+  font-size: 16px;
+
+  font-weight: 800;
+
+}
+
+.entry-model-page-price .entry-model-card-value.long {
+
+  color: #86efac;
+
+}
+
+.entry-model-page-price .entry-model-card-value.short {
+
+  color: #fca5a5;
+
+}
+
+.entry-model-page-price .entry-model-card-value.neutral {
+
+  color: #fbbf24;
+
+}
+
+
+/* ============================================================
+   WINDOW CARD ROW
+   ============================================================ */
+
+.entry-model-page-price .entry-model-card-row {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 7px 0;
+
+  border-top: 1px solid #1b2b43;
+
+}
+
+.entry-model-page-price .entry-model-card-row span {
+
+  color: #64748b;
+
+  font-size: 11px;
+
+  font-weight: 600;
+
+}
+
+.entry-model-page-price .entry-model-card-row strong {
+
+  color: #e2e8f0;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+}
+
+
+/* ============================================================
+   LATEST SCAN
+   ============================================================ */
+
+.entry-model-page-price .entry-model-latest {
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(5, minmax(0, 1fr));
+
+  gap: 1px;
+
+  background: #1e3150;
+
+}
+
+.entry-model-page-price .entry-model-latest > div {
+
+  min-width: 0;
+
+  padding: 16px 18px;
+
+  background: #0d1728;
+
+}
+
+.entry-model-page-price .entry-model-latest span {
+
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #64748b;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.5px;
+
+}
+
+.entry-model-page-price .entry-model-latest strong {
+
+  display: block;
+
+  overflow: hidden;
+
+  color: #e2e8f0;
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+}
+
+.entry-model-page-price .entry-model-latest strong.long {
+
+  color: #86efac;
+
+}
+
+.entry-model-page-price .entry-model-latest strong.short {
+
+  color: #fca5a5;
+
+}
+
+.entry-model-page-price .entry-model-latest strong.neutral {
+
+  color: #fbbf24;
+
+}
+
+
+/* ============================================================
+   TABLE WRAPPER
+   ============================================================ */
+
+.entry-model-page-price .entry-model-table-wrapper {
+
+  width: 100%;
+
+  overflow-x: auto;
+
+}
+
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+
+.entry-model-page-price .entry-model-table {
+
+  width: 100%;
+
+  min-width: 1100px;
+
+  border-collapse: collapse;
+
+}
+
+.entry-model-page-price .entry-model-table tr {
+
+  border-bottom: 1px solid #1b2b43;
+
+}
+
+.entry-model-page-price .entry-model-table tr:last-child {
+
+  border-bottom: none;
+
+}
+
+.entry-model-page-price .entry-model-table th {
+
+  padding: 12px 14px;
+
+  background: #0d1728;
+
+  color: #64748b;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  text-align: left;
+
+  letter-spacing: 0.3px;
+
+  white-space: nowrap;
+
+}
+
+.entry-model-page-price .entry-model-table td {
+
+  padding: 12px 14px;
+
+  color: #e2e8f0;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  vertical-align: middle;
+
+  white-space: nowrap;
+
+}
+
+.entry-model-page-price .entry-model-table tbody tr:hover {
+
+  background: #101d31;
+
+}
+
+
+/* ============================================================
+   TABLE LONG / SHORT / NEUTRAL
+   ============================================================ */
+
+.entry-model-page-price .entry-model-table td.long {
+
+  color: #86efac;
+
+}
+
+.entry-model-page-price .entry-model-table td.short {
+
+  color: #fca5a5;
+
+}
+
+.entry-model-page-price .entry-model-table td.neutral {
+
+  color: #94a3b8;
+
+}
+
+
+/* ============================================================
+   TABLE SMALL VALUE
+   ============================================================ */
+
+.entry-model-page-price .entry-model-table td small {
+
+  display: block;
+
+  margin-top: 3px;
+
+  color: #64748b;
+
+  font-size: 9px;
+
+  font-weight: 500;
+
+}
+
+
+/* ============================================================
+   EMPTY
+   ============================================================ */
+
+.entry-model-page-price .entry-model-empty {
+
+  padding: 40px 20px;
+
+  text-align: center;
+
+  color: #64748b;
+
+  font-size: 13px;
+
+}
+
+
+/* ============================================================
+   MOBILE / TABLET
+   ============================================================ */
+
+@media (max-width: 1200px) {
+
+  .entry-model-page-price .entry-model-info {
+
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+
+  }
+
+  .entry-model-page-price .entry-model-grid {
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+  }
+
+  .entry-model-page-price .entry-model-latest {
+
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+
+  }
+
+}
+
+
+@media (max-width: 850px) {
+
+  .entry-model-page-price {
+
+    padding: 20px;
+
+  }
+
+  .entry-model-page-price .entry-model-header {
+
+    flex-direction: column;
+
+    align-items: stretch;
+
+  }
+
+  .entry-model-page-price .entry-model-controls {
+
+    width: 100%;
+
+    flex-wrap: wrap;
+
+  }
+
+  .entry-model-page-price .entry-model-controls select {
+
+    flex: 1;
+
+    min-width: 180px;
+
+  }
+
+  .entry-model-page-price .entry-model-info {
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+  }
+
+  .entry-model-page-price .entry-model-grid {
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+  }
+
+  .entry-model-page-price .entry-model-latest {
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+  }
+
+  .entry-model-page-price .entry-model-chart {
+
+    height: 380px;
+
+    min-height: 380px;
+
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  .entry-model-page-price {
+
+    padding: 15px;
+
+  }
+
+  .entry-model-page-price .entry-model-header h1 {
+
+    font-size: 24px;
+
+  }
+
+  .entry-model-page-price .entry-model-controls {
+
+    display: grid;
+
+    grid-template-columns:
+      repeat(3, 1fr);
+
+  }
+
+  .entry-model-page-price .entry-model-controls select {
+
+    grid-column: 1 / -1;
+
+    width: 100%;
+
+  }
+
+  .entry-model-page-price .entry-model-controls button {
+
+    width: 100%;
+
+  }
+
+  .entry-model-page-price .entry-model-info {
+
+    grid-template-columns: 1fr;
+
+  }
+
+  .entry-model-page-price .entry-model-grid {
+
+    grid-template-columns: 1fr;
+
+  }
+
+  .entry-model-page-price .entry-model-latest {
+
+    grid-template-columns: 1fr;
+
+  }
+
+  .entry-model-page-price .entry-model-chart {
+
+    height: 320px;
+
+    min-height: 320px;
+
+  }
+
+}
