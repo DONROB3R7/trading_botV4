@@ -1,98 +1,220 @@
 import {
-useCallback,
-useEffect,
-useMemo,
-useRef,
-useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 
 import {
-createChart,
-CandlestickSeries,
-createSeriesMarkers,
+  createChart,
+  CandlestickSeries,
+  createSeriesMarkers,
 } from "lightweight-charts";
 
 import {
-getBots,
-getChart,
-getEntryModelEngine,
+  getBots,
+  getChart,
+  getCombinedEntryModel,
 } from "../api";
 
 import "./EntryModel.css";
+
 
 /* ============================================================
 HELPERS
 ============================================================ */
 
 function normalizeDirection(value) {
-const direction =
-String(value || "").toUpperCase();
+  const direction =
+    String(value || "").toUpperCase();
 
-if (direction === "LONG") {
-return "LONG";
+  if (direction === "LONG") {
+    return "LONG";
+  }
+
+  if (direction === "SHORT") {
+    return "SHORT";
+  }
+
+  return "NEUTRAL";
 }
 
-if (direction === "SHORT") {
-return "SHORT";
-}
-
-return "NEUTRAL";
-}
 
 function normalizeTimestamp(value) {
-if (
-value === null ||
-value === undefined
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+  if (
+    typeof value === "number"
+  ) {
+    if (!Number.isFinite(value)) {
+      return null;
+    }
+
+    return value > 100000000000
+      ? Math.floor(value / 1000)
+      : Math.floor(value);
+  }
+
+  const numeric =
+    Number(value);
+
+  if (
+    Number.isFinite(numeric)
+  ) {
+    return numeric > 100000000000
+      ? Math.floor(numeric / 1000)
+      : Math.floor(numeric);
+  }
+
+  const parsed =
+    Date.parse(String(value));
+
+  if (
+    !Number.isFinite(parsed)
+  ) {
+    return null;
+  }
+
+  return Math.floor(parsed / 1000);
+}
+
+
+/* ============================================================
+ORDERBOOK DEPTH HELPERS
+============================================================ */
+
+function getDepthResult(
+  scan,
+  depth,
+  fallbackKey
 ) {
-return null;
+  const depths =
+    Array.isArray(scan?.depths)
+      ? scan.depths
+      : [];
+
+  const result =
+    depths.find(
+      (item) =>
+        Number(item?.depth) ===
+        Number(depth)
+    );
+
+  if (result) {
+    return result;
+  }
+
+  return {
+    direction:
+      scan?.[fallbackKey] ||
+      "NEUTRAL",
+
+    percentage:
+      scan?.[
+        fallbackKey.replace(
+          "trend",
+          "percentage"
+        )
+      ] ??
+      null,
+  };
 }
 
-if (
-typeof value === "number"
+
+function getDepthDirection(
+  scan,
+  depth,
+  fallbackKey
 ) {
-if (!Number.isFinite(value)) {
-return null;
+  const result =
+    getDepthResult(
+      scan,
+      depth,
+      fallbackKey
+    );
+
+  return normalizeDirection(
+    result?.direction
+  );
 }
 
 
-return value > 100000000000
-  ? Math.floor(value / 1000)
-  : Math.floor(value);
-
-
-}
-
-const numeric =
-Number(value);
-
-if (
-Number.isFinite(numeric)
+function getDepthPercentage(
+  scan,
+  depth,
+  fallbackKey
 ) {
-return numeric > 100000000000
-? Math.floor(numeric / 1000)
-: Math.floor(numeric);
+  const result =
+    getDepthResult(
+      scan,
+      depth,
+      fallbackKey
+    );
+
+  if (
+    result?.percentage === null ||
+    result?.percentage === undefined
+  ) {
+    return null;
+  }
+
+  const value =
+    Number(result.percentage);
+
+  return Number.isFinite(value)
+    ? value
+    : null;
 }
 
-const parsed =
-Date.parse(String(value));
 
-if (
-!Number.isFinite(parsed)
+function renderDepthCell(
+  scan,
+  depth,
+  fallbackKey
 ) {
-return null;
+  const direction =
+    getDepthDirection(
+      scan,
+      depth,
+      fallbackKey
+    );
+
+  const percentage =
+    getDepthPercentage(
+      scan,
+      depth,
+      fallbackKey
+    );
+
+  return (
+    <>
+      <span
+        className={`entry-model-direction ${direction.toLowerCase()}`}
+      >
+        {direction}
+      </span>
+
+      {percentage !== null && (
+        <small
+          style={{
+            marginLeft: "5px",
+            opacity: 0.7,
+            fontSize: "11px",
+          }}
+        >
+          {percentage}%
+        </small>
+      )}
+    </>
+  );
 }
 
-return Math.floor(parsed / 1000);
-}
-
-function getTimestampMs(value) {
-const timestamp =
-normalizeTimestamp(value);
-
-return Number.isFinite(timestamp)
-? timestamp * 1000
-: 0;
-}
 
 /* ============================================================
 COMPONENT
@@ -100,2145 +222,2155 @@ COMPONENT
 
 export default function EntryModel() {
 
-/* ==========================================================
-BOT STATE
-========================================================== */
+  /* ==========================================================
+  BOT STATE
+  ========================================================== */
 
-const [
-bots,
-setBots,
-] = useState([]);
+  const [
+    bots,
+    setBots,
+  ] = useState([]);
 
-const [
-selectedBotId,
-setSelectedBotId,
-] = useState("");
-
-/* ==========================================================
-CHART STATE
-========================================================== */
-
-const [
-chartData,
-setChartData,
-] = useState([]);
-
-const [
-loadingChart,
-setLoadingChart,
-] = useState(false);
-
-/* ==========================================================
-SERVER ENGINE STATE
-========================================================== */
-
-const [
-engineState,
-setEngineState,
-] = useState(null);
-
-/* ==========================================================
-GENERAL STATE
-========================================================== */
-
-const [
-loadingBots,
-setLoadingBots,
-] = useState(true);
-
-const [
-error,
-setError,
-] = useState("");
-
-const [
-success,
-setSuccess,
-] = useState("");
-
-/* ==========================================================
-CHART REFS
-========================================================== */
-
-const chartContainerRef =
-useRef(null);
-
-const chartRef =
-useRef(null);
-
-const candleSeriesRef =
-useRef(null);
-
-const markersRef =
-useRef(null);
-
-const chartMountedRef =
-useRef(false);
-
-const chartGenerationRef =
-useRef(0);
-
-const chartHasFittedRef =
-useRef(false);
-
-const chartRefreshTimerRef =
-useRef(null);
-
-/* ==========================================================
-SELECTED BOT
-========================================================== */
-
-const selectedBot =
-useMemo(
-() =>
-bots.find(
-(bot) =>
-String(bot.id) ===
-String(selectedBotId)
-),
-[
-bots,
-selectedBotId,
-]
-);
-
-const botDirection =
-selectedBot?.direction || "";
-
-const triggerState =
-selectedBot?.triggerState || "";
-
-const isArmed =
-triggerState === "ARMED";
-
-const botStatus =
-selectedBot?.status || "";
-
-/* ==========================================================
-SERVER ENGINE DATA
-========================================================== */
-
-const currentScans =
-Array.isArray(
-engineState?.currentScans
-)
-? engineState.currentScans
-: [];
-
-const previousCycles =
-Array.isArray(
-engineState?.previousCycles
-)
-? engineState.previousCycles
-: [];
-
-const scanCount =
-Number(
-engineState?.scanCount || 0
-);
-
-const cycleNumber =
-Number(
-engineState?.cycleNumber || 0
-);
-
-const running =
-Boolean(
-engineState?.running
-);
-
-/* ==========================================================
-SORT PREVIOUS CYCLES
+  const [
+    selectedBotId,
+    setSelectedBotId,
+  ] = useState("");
 
 
- NEWEST FIRST.
- 
- Do not mutate the server array.
- ========================================================== */
+  /* ==========================================================
+  CHART STATE
+  ========================================================== */
+
+  const [
+    chartData,
+    setChartData,
+  ] = useState([]);
+
+  const [
+    loadingChart,
+    setLoadingChart,
+  ] = useState(false);
 
 
+  /* ==========================================================
+  COMBINED ENTRY MODEL STATE
+  ========================================================== */
 
-const sortedPreviousCycles =
-  useMemo(
-    () =>
-      [...previousCycles].sort(
-        (a, b) =>
-          Number(b?.completedAt || 0) -
-          Number(a?.completedAt || 0)
-      ),
-    [previousCycles]
-  );
+  const [
+    combinedState,
+    setCombinedState,
+  ] = useState(null);
 
 
+  /* ==========================================================
+  GENERAL STATE
+  ========================================================== */
 
-/* ==========================================================
-LOAD BOTS
-========================================================== */
+  const [
+    loadingBots,
+    setLoadingBots,
+  ] = useState(true);
 
-const loadBots =
-useCallback(
-async () => {
-try {
-setLoadingBots(true);
-setError("");
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-
-      const response =
-        await getBots();
-
-      const list =
-        Array.isArray(response)
-          ? response
-          : Array.isArray(
-              response?.bots
-            )
-          ? response.bots
-          : Array.isArray(
-              response?.data
-            )
-          ? response.data
-          : [];
-
-      setBots(list);
-
-      if (list.length > 0) {
-        setSelectedBotId(
-          (current) => {
-            if (
-              current &&
-              list.some(
-                (bot) =>
-                  String(bot.id) ===
-                  String(current)
-              )
-            ) {
-              return current;
-            }
-
-            return String(
-              list[0].id
-            );
-          }
-        );
-      } else {
-        setSelectedBotId("");
-      }
-
-    } catch (err) {
-      console.error(
-        "[Entry Model] Bot load error:",
-        err
-      );
-
-      setError(
-        err?.message ||
-        "Failed to load bots."
-      );
-
-    } finally {
-      setLoadingBots(false);
-    }
-  },
-  []
-);
+  const [
+    success,
+    setSuccess,
+  ] = useState("");
 
 
-/* ==========================================================
-INITIAL LOAD / CLEANUP
-========================================================== */
+  /* ==========================================================
+  CHART REFS
+  ========================================================== */
 
-useEffect(() => {
-loadBots();
+  const chartContainerRef =
+    useRef(null);
+
+  const chartRef =
+    useRef(null);
+
+  const candleSeriesRef =
+    useRef(null);
+
+  const markersRef =
+    useRef(null);
+
+  const chartMountedRef =
+    useRef(false);
+
+  const chartGenerationRef =
+    useRef(0);
+
+  const chartHasFittedRef =
+    useRef(false);
+
+  const chartRefreshTimerRef =
+    useRef(null);
 
 
-return () => {
-  if (
-    chartRefreshTimerRef.current
-  ) {
-    clearInterval(
-      chartRefreshTimerRef.current
+  /* ==========================================================
+  SELECTED BOT
+  ========================================================== */
+
+  const selectedBot =
+    useMemo(
+      () =>
+        bots.find(
+          (bot) =>
+            String(bot.id) ===
+            String(selectedBotId)
+        ),
+      [
+        bots,
+        selectedBotId,
+      ]
     );
 
-    chartRefreshTimerRef.current =
-      null;
-  }
-};
+  const botDirection =
+    normalizeDirection(
+      selectedBot?.direction
+    );
+
+  const triggerState =
+    selectedBot?.triggerState || "";
+
+  const isArmed =
+    triggerState === "ARMED";
+
+  const botStatus =
+    selectedBot?.status || "";
 
 
-}, [
-loadBots,
-]);
+  /* ==========================================================
+  COMBINED STATE
+  ========================================================== */
 
-/* ==========================================================
-LOAD CHART DATA
-========================================================== */
+  const combinedRunning =
+    Boolean(
+      combinedState?.running
+    );
 
-const loadChartData =
-useCallback(
-async (
-showLoading = true
-) => {
-const symbol =
-selectedBot?.symbol;
+  const combinedStateName =
+    combinedState?.state ||
+    "IDLE";
+
+  const combinedDirection =
+    normalizeDirection(
+      combinedState?.direction
+    );
+
+  const orderbookCycle =
+    Number(
+      combinedState?.orderbookCycle || 0
+    );
+
+  const maxOrderbookCycles =
+    Number(
+      combinedState?.maxOrderbookCycles || 3
+    );
+
+  const orderbookScan =
+    Number(
+      combinedState?.orderbookScan || 0
+    );
+
+  const scansPerCycle =
+    Number(
+      combinedState?.scansPerCycle || 15
+    );
+
+  const confirmations =
+    Number(
+      combinedState?.confirmations || 0
+    );
+
+  const requiredConfirmations =
+    Number(
+      combinedState?.requiredConfirmations || 3
+    );
+
+  const pyramidCount =
+    Number(
+      combinedState?.pyramidCount || 0
+    );
+
+  const maxPyramid =
+    Number(
+      combinedState?.maxPyramid || 3
+    );
 
 
-    if (!symbol) {
-      setChartData([]);
-      return;
-    }
+  /* ==========================================================
+  CURRENT SCANS
+  ========================================================== */
 
-    try {
-      if (showLoading) {
-        setLoadingChart(true);
-      }
+  /*
+    Backend is the source of truth.
 
-      const response =
-        await getChart(
-          symbol,
-          "15m"
-        );
+    CombinedEntryModelController stores:
+      currentScans[]
 
-      const rawData =
-        Array.isArray(response)
-          ? response
-          : Array.isArray(
-              response?.data
-            )
-          ? response.data
-          : Array.isArray(
-              response?.candles
-            )
-          ? response.candles
-          : Array.isArray(
-              response?.klines
-            )
-          ? response.klines
-          : [];
+    Each scan contains:
+      timestamp
+      symbol
+      depths[]
+      decision
+      confirmed
+      scanNumber
+      cycle
+      campaign
 
-      const normalized =
-        rawData
-          .map((candle) => {
-            if (!candle) {
-              return null;
-            }
+    The frontend only reads and displays them.
+  */
 
-            let time;
-            let open;
-            let high;
-            let low;
-            let close;
+  const currentScans =
+    useMemo(
+      () => {
 
-            if (
-              Array.isArray(
-                candle
+        const scans =
+          Array.isArray(
+            combinedState?.currentScans
+          )
+            ? combinedState.currentScans
+            : Array.isArray(
+                combinedState?.scans
               )
-            ) {
-              time =
-                Number(
-                  candle[0]
+            ? combinedState.scans
+            : [];
+
+        return [...scans].sort(
+          (a, b) => {
+
+            const scanA =
+              Number(
+                a?.scanNumber || 0
+              );
+
+            const scanB =
+              Number(
+                b?.scanNumber || 0
+              );
+
+            return scanA - scanB;
+          }
+        );
+      },
+      [
+        combinedState,
+      ]
+    );
+
+
+  /* ==========================================================
+  PREVIOUS CYCLES
+  ========================================================== */
+
+  const previousCycles =
+    Array.isArray(
+      combinedState?.previousCycles
+    )
+      ? combinedState.previousCycles
+      : [];
+
+
+  /* ==========================================================
+  SORT PREVIOUS CYCLES
+  ========================================================== */
+
+  const sortedPreviousCycles =
+    useMemo(
+      () =>
+        [...previousCycles].sort(
+          (a, b) => {
+
+            const timeA =
+              normalizeTimestamp(
+                a?.completedAt
+              ) || 0;
+
+            const timeB =
+              normalizeTimestamp(
+                b?.completedAt
+              ) || 0;
+
+            return timeB - timeA;
+          }
+        ),
+      [
+        previousCycles,
+      ]
+    );
+
+
+  /* ==========================================================
+  LOAD BOTS
+  ========================================================== */
+
+  const loadBots =
+    useCallback(
+      async () => {
+
+        try {
+
+          setLoadingBots(true);
+          setError("");
+
+          const response =
+            await getBots();
+
+          const list =
+            Array.isArray(response)
+              ? response
+              : Array.isArray(
+                  response?.bots
+                )
+              ? response.bots
+              : Array.isArray(
+                  response?.data
+                )
+              ? response.data
+              : [];
+
+          setBots(list);
+
+          if (list.length > 0) {
+
+            setSelectedBotId(
+              (current) => {
+
+                if (
+                  current &&
+                  list.some(
+                    (bot) =>
+                      String(bot.id) ===
+                      String(current)
+                  )
+                ) {
+                  return current;
+                }
+
+                return String(
+                  list[0].id
                 );
+              }
+            );
 
-              open =
-                Number(
-                  candle[1]
-                );
+          } else {
 
-              high =
-                Number(
-                  candle[2]
-                );
+            setSelectedBotId("");
 
-              low =
-                Number(
-                  candle[3]
-                );
+          }
 
-              close =
-                Number(
-                  candle[4]
-                );
+        } catch (err) {
 
-            } else {
-              time =
-                Number(
-                  candle.time ??
-                  candle.timestamp ??
-                  candle.ts ??
-                  candle.openTime
-                );
-
-              open =
-                Number(
-                  candle.open
-                );
-
-              high =
-                Number(
-                  candle.high
-                );
-
-              low =
-                Number(
-                  candle.low
-                );
-
-              close =
-                Number(
-                  candle.close
-                );
-            }
-
-            if (
-              !Number.isFinite(time) ||
-              !Number.isFinite(open) ||
-              !Number.isFinite(high) ||
-              !Number.isFinite(low) ||
-              !Number.isFinite(close)
-            ) {
-              return null;
-            }
-
-            if (
-              time >
-              100000000000
-            ) {
-              time =
-                Math.floor(
-                  time / 1000
-                );
-            }
-
-            return {
-              time,
-              open,
-              high,
-              low,
-              close,
-            };
-          })
-          .filter(Boolean)
-          .sort(
-            (a, b) =>
-              a.time -
-              b.time
+          console.error(
+            "[Entry Model] Bot load error:",
+            err
           );
 
-      setChartData(
-        normalized
-      );
+          setError(
+            err?.message ||
+            "Failed to load bots."
+          );
 
-      console.log(
-        `[Entry Model] Chart refreshed | ${symbol} | candles=${normalized.length}`
-      );
+        } finally {
 
-    } catch (err) {
-      console.error(
-        "[Entry Model] Chart load error:",
-        err
-      );
+          setLoadingBots(false);
 
-      setError(
-        err?.message ||
-        "Failed to load chart."
-      );
+        }
 
-    } finally {
-      if (showLoading) {
-        setLoadingChart(false);
-      }
-    }
-  },
-  [
-    selectedBot?.symbol,
-  ]
-);
+      },
+      []
+    );
 
 
-/* ==========================================================
-INITIAL CHART LOAD
-========================================================== */
+  /* ==========================================================
+  INITIAL LOAD / CLEANUP
+  ========================================================== */
 
-useEffect(() => {
-let cancelled = false;
+  useEffect(() => {
 
+    loadBots();
 
-async function initialLoad() {
-  const symbol =
-    selectedBot?.symbol;
+    return () => {
 
-  if (!symbol) {
-    setChartData([]);
-    return;
-  }
+      if (
+        chartRefreshTimerRef.current
+      ) {
 
-  try {
-    setLoadingChart(true);
-    setError("");
-
-    const response =
-      await getChart(
-        symbol,
-        "15m"
-      );
-
-    if (cancelled) {
-      return;
-    }
-
-    const rawData =
-      Array.isArray(response)
-        ? response
-        : Array.isArray(
-            response?.data
-          )
-        ? response.data
-        : Array.isArray(
-            response?.candles
-          )
-        ? response.candles
-        : Array.isArray(
-            response?.klines
-          )
-        ? response.klines
-        : [];
-
-    const normalized =
-      rawData
-        .map((candle) => {
-          if (!candle) {
-            return null;
-          }
-
-          let time;
-          let open;
-          let high;
-          let low;
-          let close;
-
-          if (
-            Array.isArray(
-              candle
-            )
-          ) {
-            time =
-              Number(
-                candle[0]
-              );
-
-            open =
-              Number(
-                candle[1]
-              );
-
-            high =
-              Number(
-                candle[2]
-              );
-
-            low =
-              Number(
-                candle[3]
-              );
-
-            close =
-              Number(
-                candle[4]
-              );
-          } else {
-            time =
-              Number(
-                candle.time ??
-                candle.timestamp ??
-                candle.ts ??
-                candle.openTime
-              );
-
-            open =
-              Number(
-                candle.open
-              );
-
-            high =
-              Number(
-                candle.high
-              );
-
-            low =
-              Number(
-                candle.low
-              );
-
-            close =
-              Number(
-                candle.close
-              );
-          }
-
-          if (
-            !Number.isFinite(time) ||
-            !Number.isFinite(open) ||
-            !Number.isFinite(high) ||
-            !Number.isFinite(low) ||
-            !Number.isFinite(close)
-          ) {
-            return null;
-          }
-
-          if (
-            time >
-            100000000000
-          ) {
-            time =
-              Math.floor(
-                time / 1000
-              );
-          }
-
-          return {
-            time,
-            open,
-            high,
-            low,
-            close,
-          };
-        })
-        .filter(Boolean)
-        .sort(
-          (a, b) =>
-            a.time -
-            b.time
+        clearInterval(
+          chartRefreshTimerRef.current
         );
 
-    setChartData(
-      normalized
+        chartRefreshTimerRef.current =
+          null;
+
+      }
+
+    };
+
+  }, [
+    loadBots,
+  ]);
+
+
+  /* ==========================================================
+  LOAD COMBINED ENTRY MODEL
+  ========================================================== */
+
+  useEffect(() => {
+
+    if (!selectedBot) {
+
+      setCombinedState(null);
+
+      return;
+
+    }
+
+    let cancelled = false;
+
+
+    async function loadCombinedState() {
+
+      try {
+
+        const response =
+          await getCombinedEntryModel(
+            selectedBot.id
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        const model =
+          response?.model ??
+          response?.data ??
+          response;
+
+        setCombinedState(
+          model || null
+        );
+
+        console.log(
+          "[Entry Model] COMBINED STATE:",
+          model
+        );
+
+      } catch (err) {
+
+        if (cancelled) {
+          return;
+        }
+
+        console.error(
+          "[Entry Model] Combined state error:",
+          err
+        );
+
+        setError(
+          err?.message ||
+          "Failed to load Combined Entry Model."
+        );
+
+      }
+
+    }
+
+
+    loadCombinedState();
+
+
+    /*
+      Backend owns the timer.
+
+      Frontend only reads the state.
+      2-second polling is enough to display
+      the 20-second scanner updates.
+    */
+
+    const timer =
+      setInterval(
+        loadCombinedState,
+        2000
+      );
+
+
+    return () => {
+
+      cancelled = true;
+
+      clearInterval(
+        timer
+      );
+
+    };
+
+  }, [
+    selectedBotId,
+  ]);
+
+
+  /* ==========================================================
+  LOAD CHART DATA
+  ========================================================== */
+
+  const loadChartData =
+    useCallback(
+      async (
+        showLoading = true
+      ) => {
+
+        const symbol =
+          selectedBot?.symbol;
+
+        if (!symbol) {
+
+          setChartData([]);
+
+          return;
+
+        }
+
+        try {
+
+          if (showLoading) {
+            setLoadingChart(true);
+          }
+
+          const response =
+            await getChart(
+              symbol,
+              "15m"
+            );
+
+          const rawData =
+            Array.isArray(response)
+              ? response
+              : Array.isArray(
+                  response?.data
+                )
+              ? response.data
+              : Array.isArray(
+                  response?.candles
+                )
+              ? response.candles
+              : Array.isArray(
+                  response?.klines
+                )
+              ? response.klines
+              : [];
+
+          const normalized =
+            rawData
+              .map((candle) => {
+
+                if (!candle) {
+                  return null;
+                }
+
+                let time;
+                let open;
+                let high;
+                let low;
+                let close;
+
+                if (
+                  Array.isArray(
+                    candle
+                  )
+                ) {
+
+                  time =
+                    Number(
+                      candle[0]
+                    );
+
+                  open =
+                    Number(
+                      candle[1]
+                    );
+
+                  high =
+                    Number(
+                      candle[2]
+                    );
+
+                  low =
+                    Number(
+                      candle[3]
+                    );
+
+                  close =
+                    Number(
+                      candle[4]
+                    );
+
+                } else {
+
+                  time =
+                    Number(
+                      candle.time ??
+                      candle.timestamp ??
+                      candle.ts ??
+                      candle.openTime
+                    );
+
+                  open =
+                    Number(
+                      candle.open
+                    );
+
+                  high =
+                    Number(
+                      candle.high
+                    );
+
+                  low =
+                    Number(
+                      candle.low
+                    );
+
+                  close =
+                    Number(
+                      candle.close
+                    );
+
+                }
+
+                if (
+                  !Number.isFinite(time) ||
+                  !Number.isFinite(open) ||
+                  !Number.isFinite(high) ||
+                  !Number.isFinite(low) ||
+                  !Number.isFinite(close)
+                ) {
+                  return null;
+                }
+
+                if (
+                  time >
+                  100000000000
+                ) {
+                  time =
+                    Math.floor(
+                      time / 1000
+                    );
+                }
+
+                return {
+                  time,
+                  open,
+                  high,
+                  low,
+                  close,
+                };
+
+              })
+              .filter(Boolean)
+              .sort(
+                (a, b) =>
+                  a.time -
+                  b.time
+              );
+
+          setChartData(
+            normalized
+          );
+
+          console.log(
+            `[Entry Model] Chart refreshed | ${symbol} | candles=${normalized.length}`
+          );
+
+        } catch (err) {
+
+          console.error(
+            "[Entry Model] Chart load error:",
+            err
+          );
+
+          setError(
+            err?.message ||
+            "Failed to load chart."
+          );
+
+        } finally {
+
+          if (showLoading) {
+            setLoadingChart(false);
+          }
+
+        }
+
+      },
+      [
+        selectedBot?.symbol,
+      ]
     );
 
-    console.log(
-      `[Entry Model] Initial chart load | ${symbol} | candles=${normalized.length}`
-    );
 
-  } catch (err) {
-    if (cancelled) {
+  /* ==========================================================
+  INITIAL CHART LOAD
+  ========================================================== */
+
+  useEffect(() => {
+
+    let cancelled = false;
+
+
+    async function initialLoad() {
+
+      const symbol =
+        selectedBot?.symbol;
+
+      if (!symbol) {
+
+        setChartData([]);
+
+        return;
+
+      }
+
+      try {
+
+        setLoadingChart(true);
+        setError("");
+
+        const response =
+          await getChart(
+            symbol,
+            "15m"
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        const rawData =
+          Array.isArray(response)
+            ? response
+            : Array.isArray(
+                response?.data
+              )
+            ? response.data
+            : Array.isArray(
+                response?.candles
+              )
+            ? response.candles
+            : Array.isArray(
+                response?.klines
+              )
+            ? response.klines
+            : [];
+
+        const normalized =
+          rawData
+            .map((candle) => {
+
+              if (!candle) {
+                return null;
+              }
+
+              let time;
+              let open;
+              let high;
+              let low;
+              let close;
+
+              if (
+                Array.isArray(
+                  candle
+                )
+              ) {
+
+                time =
+                  Number(
+                    candle[0]
+                  );
+
+                open =
+                  Number(
+                    candle[1]
+                  );
+
+                high =
+                  Number(
+                    candle[2]
+                  );
+
+                low =
+                  Number(
+                    candle[3]
+                  );
+
+                close =
+                  Number(
+                    candle[4]
+                  );
+
+              } else {
+
+                time =
+                  Number(
+                    candle.time ??
+                    candle.timestamp ??
+                    candle.ts ??
+                    candle.openTime
+                  );
+
+                open =
+                  Number(
+                    candle.open
+                  );
+
+                high =
+                  Number(
+                    candle.high
+                  );
+
+                low =
+                  Number(
+                    candle.low
+                  );
+
+                close =
+                  Number(
+                    candle.close
+                  );
+
+              }
+
+              if (
+                !Number.isFinite(time) ||
+                !Number.isFinite(open) ||
+                !Number.isFinite(high) ||
+                !Number.isFinite(low) ||
+                !Number.isFinite(close)
+              ) {
+                return null;
+              }
+
+              if (
+                time >
+                100000000000
+              ) {
+                time =
+                  Math.floor(
+                    time / 1000
+                  );
+              }
+
+              return {
+                time,
+                open,
+                high,
+                low,
+                close,
+              };
+
+            })
+            .filter(Boolean)
+            .sort(
+              (a, b) =>
+                a.time -
+                b.time
+            );
+
+        setChartData(
+          normalized
+        );
+
+      } catch (err) {
+
+        if (cancelled) {
+          return;
+        }
+
+        console.error(
+          "[Entry Model] Chart load error:",
+          err
+        );
+
+        setChartData([]);
+
+        setError(
+          err?.message ||
+          "Failed to load chart."
+        );
+
+      } finally {
+
+        if (!cancelled) {
+          setLoadingChart(false);
+        }
+
+      }
+
+    }
+
+
+    initialLoad();
+
+
+    return () => {
+      cancelled = true;
+    };
+
+  }, [
+    selectedBot?.symbol,
+  ]);
+
+
+  /* ==========================================================
+  CHART REFRESH
+  ========================================================== */
+
+  useEffect(() => {
+
+    if (
+      chartRefreshTimerRef.current
+    ) {
+
+      clearInterval(
+        chartRefreshTimerRef.current
+      );
+
+      chartRefreshTimerRef.current =
+        null;
+
+    }
+
+    if (
+      !selectedBot?.symbol
+    ) {
       return;
     }
 
-    console.error(
-      "[Entry Model] Chart load error:",
-      err
-    );
-
-    setChartData([]);
-
-    setError(
-      err?.message ||
-      "Failed to load chart."
-    );
-
-  } finally {
-    if (!cancelled) {
-      setLoadingChart(false);
-    }
-  }
-}
-
-initialLoad();
-
-return () => {
-  cancelled = true;
-};
-
-
-}, [
-selectedBot?.symbol,
-]);
-
-/* ==========================================================
-ONE-MINUTE CHART REFRESH
-========================================================== */
-
-useEffect(() => {
-if (
-chartRefreshTimerRef.current
-) {
-clearInterval(
-chartRefreshTimerRef.current
-);
-
-
-  chartRefreshTimerRef.current =
-    null;
-}
-
-if (
-  !selectedBot?.symbol
-) {
-  return;
-}
-
-chartRefreshTimerRef.current =
-  setInterval(
-    () => {
-      loadChartData(false);
-    },
-    60 * 1000
-  );
-
-return () => {
-  if (
-    chartRefreshTimerRef.current
-  ) {
-    clearInterval(
-      chartRefreshTimerRef.current
-    );
-
     chartRefreshTimerRef.current =
-      null;
-  }
-};
-
-
-}, [
-selectedBot?.symbol,
-loadChartData,
-]);
-
-/* ==========================================================
-CREATE CHART
-========================================================== */
-
-useEffect(() => {
-const container =
-chartContainerRef.current;
-
-
-if (!container) {
-  console.log(
-    "[Entry Model] Chart container not ready"
-  );
-
-  return;
-}
-
-if (
-  !selectedBot?.symbol
-) {
-  return;
-}
-
-if (chartRef.current) {
-  return;
-}
-
-chartGenerationRef.current +=
-  1;
-
-const generation =
-  chartGenerationRef.current;
-
-const chart =
-  createChart(
-    container,
-    {
-      width:
-        container.clientWidth,
-
-      height:
-        600,
-
-      layout: {
-        background: {
-          color:
-            "#0d1728",
+      setInterval(
+        () => {
+          loadChartData(false);
         },
+        60 * 1000
+      );
 
-        textColor:
-          "#94a3b8",
-      },
+    return () => {
 
-      grid: {
-        vertLines: {
-          color:
-            "#17263d",
-        },
+      if (
+        chartRefreshTimerRef.current
+      ) {
 
-        horzLines: {
-          color:
-            "#17263d",
-        },
-      },
+        clearInterval(
+          chartRefreshTimerRef.current
+        );
 
-      rightPriceScale: {
-        borderColor:
-          "#294467",
-      },
+        chartRefreshTimerRef.current =
+          null;
 
-      timeScale: {
-        borderColor:
-          "#294467",
+      }
 
-        timeVisible:
-          true,
+    };
 
-        secondsVisible:
-          false,
-      },
+  }, [
+    selectedBot?.symbol,
+    loadChartData,
+  ]);
 
-      crosshair: {
-        vertLine: {
-          color:
-            "#294467",
-        },
 
-        horzLine: {
-          color:
-            "#294467",
-        },
-      },
+  /* ==========================================================
+  CREATE CHART
+  ========================================================== */
+
+  useEffect(() => {
+
+    const container =
+      chartContainerRef.current;
+
+    if (!container) {
+      return;
     }
-  );
 
-const candleSeries =
-  chart.addSeries(
-    CandlestickSeries,
-    {
-      upColor:
-        "#22c55e",
-
-      downColor:
-        "#ef4444",
-
-      borderUpColor:
-        "#22c55e",
-
-      borderDownColor:
-        "#ef4444",
-
-      wickUpColor:
-        "#22c55e",
-
-      wickDownColor:
-        "#ef4444",
+    if (
+      !selectedBot?.symbol
+    ) {
+      return;
     }
-  );
 
-const markerController =
-  createSeriesMarkers(
-    candleSeries,
-    []
-  );
+    if (chartRef.current) {
+      return;
+    }
 
-chartRef.current =
-  chart;
+    chartGenerationRef.current +=
+      1;
 
-candleSeriesRef.current =
-  candleSeries;
+    const generation =
+      chartGenerationRef.current;
 
-markersRef.current =
-  markerController;
+    const chart =
+      createChart(
+        container,
+        {
+          width:
+            container.clientWidth,
 
-chartMountedRef.current =
-  true;
+          height:
+            600,
 
-chartHasFittedRef.current =
-  false;
+          layout: {
+            background: {
+              color:
+                "#0d1728",
+            },
 
-console.log(
-  `[Entry Model] Chart created | ${selectedBot.symbol} | generation=${generation}`
-);
+            textColor:
+              "#94a3b8",
+          },
 
-const handleResize =
-  () => {
+          grid: {
+            vertLines: {
+              color:
+                "#17263d",
+            },
+
+            horzLines: {
+              color:
+                "#17263d",
+            },
+          },
+
+          rightPriceScale: {
+            borderColor:
+              "#294467",
+          },
+
+          timeScale: {
+            borderColor:
+              "#294467",
+
+            timeVisible:
+              true,
+
+            secondsVisible:
+              false,
+          },
+
+          crosshair: {
+            vertLine: {
+              color:
+                "#294467",
+            },
+
+            horzLine: {
+              color:
+                "#294467",
+            },
+          },
+        }
+      );
+
+
+    const candleSeries =
+      chart.addSeries(
+        CandlestickSeries,
+        {
+          upColor:
+            "#22c55e",
+
+          downColor:
+            "#ef4444",
+
+          borderUpColor:
+            "#22c55e",
+
+          borderDownColor:
+            "#ef4444",
+
+          wickUpColor:
+            "#22c55e",
+
+          wickDownColor:
+            "#ef4444",
+        }
+      );
+
+
+    const markerController =
+      createSeriesMarkers(
+        candleSeries,
+        []
+      );
+
+
+    chartRef.current =
+      chart;
+
+    candleSeriesRef.current =
+      candleSeries;
+
+    markersRef.current =
+      markerController;
+
+    chartMountedRef.current =
+      true;
+
+    chartHasFittedRef.current =
+      false;
+
+
+    const handleResize =
+      () => {
+
+        if (
+          !chartMountedRef.current ||
+          !chartContainerRef.current
+        ) {
+          return;
+        }
+
+        try {
+
+          chart.applyOptions({
+            width:
+              chartContainerRef.current
+                .clientWidth,
+          });
+
+        } catch (error) {
+
+          console.warn(
+            "[Entry Model] Chart resize failed:",
+            error
+          );
+
+        }
+
+      };
+
+
+    window.addEventListener(
+      "resize",
+      handleResize
+    );
+
+
+    return () => {
+
+      chartMountedRef.current =
+        false;
+
+      chartGenerationRef.current +=
+        1;
+
+      window.removeEventListener(
+        "resize",
+        handleResize
+      );
+
+      try {
+        chart.remove();
+      } catch (error) {
+        console.warn(
+          "[Entry Model] Chart cleanup failed:",
+          error
+        );
+      }
+
+      chartRef.current =
+        null;
+
+      candleSeriesRef.current =
+        null;
+
+      markersRef.current =
+        null;
+
+    };
+
+  }, [
+    selectedBot?.symbol,
+  ]);
+
+
+  /* ==========================================================
+  UPDATE CANDLES
+  ========================================================== */
+
+  useEffect(() => {
+
     if (
       !chartMountedRef.current ||
-      !chartContainerRef.current
+      !candleSeriesRef.current ||
+      !chartData.length
     ) {
       return;
     }
 
     try {
-      chart.applyOptions({
-        width:
-          chartContainerRef.current
-            .clientWidth,
-      });
+
+      candleSeriesRef.current.setData(
+        chartData
+      );
+
     } catch (error) {
-      console.warn(
-        "[Entry Model] Chart resize failed:",
+
+      console.error(
+        "[Entry Model] Candle setData error:",
         error
       );
-    }
-  };
 
-window.addEventListener(
-  "resize",
-  handleResize
-);
-
-return () => {
-  console.log(
-    `[Entry Model] Destroying chart | generation=${generation}`
-  );
-
-  chartMountedRef.current =
-    false;
-
-  chartGenerationRef.current +=
-    1;
-
-  window.removeEventListener(
-    "resize",
-    handleResize
-  );
-
-  try {
-    chart.remove();
-  } catch (error) {
-    console.warn(
-      "[Entry Model] Chart cleanup failed:",
-      error
-    );
-  }
-
-  chartRef.current =
-    null;
-
-  candleSeriesRef.current =
-    null;
-
-  markersRef.current =
-    null;
-};
-
-
-}, [
-selectedBot?.symbol,
-]);
-
-/* ==========================================================
-UPDATE CANDLE DATA
-========================================================== */
-
-useEffect(() => {
-if (
-!chartMountedRef.current ||
-!candleSeriesRef.current
-) {
-return;
-}
-
-
-if (!chartData.length) {
-  return;
-}
-
-try {
-  candleSeriesRef.current.setData(
-    chartData
-  );
-
-  console.log(
-    `[Entry Model] Candles rendered | ${chartData.length}`
-  );
-
-} catch (error) {
-  console.error(
-    "[Entry Model] Candle setData error:",
-    error
-  );
-}
-
-
-}, [
-chartData,
-]);
-
-/* ==========================================================
-FIT CHART
-========================================================== */
-
-useEffect(() => {
-if (
-!chartMountedRef.current ||
-!chartRef.current ||
-!chartData.length
-) {
-return;
-}
-
-
-if (
-  chartHasFittedRef.current
-) {
-  return;
-}
-
-try {
-  chartRef.current
-    .timeScale()
-    .fitContent();
-
-  chartHasFittedRef.current =
-    true;
-
-} catch (error) {
-  console.warn(
-    "[Entry Model] Chart fit failed:",
-    error
-  );
-}
-
-
-}, [
-chartData,
-]);
-
-/* ==========================================================
-FINAL SIGNAL MARKERS
-
-SERVER DATA ONLY.
-
-LONG / SHORT comes directly from:
-cycle.decision
-
-TIME comes directly from:
-cycle.completedAt
-
-NEUTRAL cycles get no marker.
-========================================================== */
-
-useEffect(() => {
-  if (
-    !chartMountedRef.current ||
-    !candleSeriesRef.current ||
-    !markersRef.current ||
-    !chartData.length
-  ) {
-    return;
-  }
-
-  const markers = [];
-
-  for (const cycle of previousCycles) {
-    const decision =
-      String(
-        cycle?.decision || ""
-      ).toUpperCase();
-
-    // Only show real LONG / SHORT signals.
-    if (
-      decision !== "LONG" &&
-      decision !== "SHORT"
-    ) {
-      continue;
     }
 
-    // Server sends completedAt as Unix milliseconds.
-    const cycleTime =
-      normalizeTimestamp(
-        cycle?.completedAt
-      );
+  }, [
+    chartData,
+  ]);
+
+
+  /* ==========================================================
+  FIT CHART
+  ========================================================== */
+
+  useEffect(() => {
 
     if (
-      !Number.isFinite(
-        cycleTime
-      )
+      !chartMountedRef.current ||
+      !chartRef.current ||
+      !chartData.length
     ) {
-      continue;
+      return;
     }
 
-    // Find the candle closest to the completed cycle time.
-    let nearestCandle =
-      chartData[0];
+    if (
+      chartHasFittedRef.current
+    ) {
+      return;
+    }
 
-    let nearestDistance =
-      Math.abs(
-        chartData[0].time -
-        cycleTime
+    try {
+
+      chartRef.current
+        .timeScale()
+        .fitContent();
+
+      chartHasFittedRef.current =
+        true;
+
+    } catch (error) {
+
+      console.warn(
+        "[Entry Model] Chart fit failed:",
+        error
       );
 
-    for (const candle of chartData) {
-      const distance =
-        Math.abs(
-          candle.time -
-          cycleTime
+    }
+
+  }, [
+    chartData,
+  ]);
+
+
+  /* ==========================================================
+  SIGNAL MARKERS
+  ========================================================== */
+
+  useEffect(() => {
+
+    if (
+      !chartMountedRef.current ||
+      !candleSeriesRef.current ||
+      !markersRef.current ||
+      !chartData.length
+    ) {
+      return;
+    }
+
+    const markers = [];
+
+    for (
+      const cycle
+      of previousCycles
+    ) {
+
+      const decision =
+        String(
+          cycle?.decision || ""
+        ).toUpperCase();
+
+      if (
+        decision !== "LONG" &&
+        decision !== "SHORT"
+      ) {
+        continue;
+      }
+
+      const cycleTime =
+        normalizeTimestamp(
+          cycle?.completedAt
         );
 
       if (
-        distance <
-        nearestDistance
+        !Number.isFinite(
+          cycleTime
+        )
       ) {
-        nearestDistance =
-          distance;
-
-        nearestCandle =
-          candle;
+        continue;
       }
+
+      let nearestCandle =
+        chartData[0];
+
+      let nearestDistance =
+        Math.abs(
+          chartData[0].time -
+          cycleTime
+        );
+
+      for (
+        const candle
+        of chartData
+      ) {
+
+        const distance =
+          Math.abs(
+            candle.time -
+            cycleTime
+          );
+
+        if (
+          distance <
+          nearestDistance
+        ) {
+
+          nearestDistance =
+            distance;
+
+          nearestCandle =
+            candle;
+
+        }
+
+      }
+
+      markers.push({
+
+        time:
+          nearestCandle.time,
+
+        position:
+          decision === "LONG"
+            ? "belowBar"
+            : "aboveBar",
+
+        color:
+          decision === "LONG"
+            ? "#22c55e"
+            : "#ef4444",
+
+        shape:
+          decision === "LONG"
+            ? "arrowUp"
+            : "arrowDown",
+
+        text:
+          decision,
+
+      });
+
     }
 
-    markers.push({
-      time:
-        nearestCandle.time,
 
-      position:
-        decision === "LONG"
-          ? "belowBar"
-          : "aboveBar",
-
-      color:
-        decision === "LONG"
-          ? "#22c55e"
-          : "#ef4444",
-
-      shape:
-        decision === "LONG"
-          ? "arrowUp"
-          : "arrowDown",
-
-      text:
-        decision,
-    });
-  }
-
-  // Oldest → newest for Lightweight Charts.
-  markers.sort(
-    (a, b) =>
-      a.time -
-      b.time
-  );
-
-  console.log(
-    "[Entry Model] Signal markers:",
-    markers
-  );
-
-  try {
-    markersRef.current.setMarkers(
-      markers
+    markers.sort(
+      (a, b) =>
+        a.time -
+        b.time
     );
-  } catch (error) {
-    console.warn(
-      "[Entry Model] Marker update failed:",
-      error
-    );
-  }
-
-}, [
-  previousCycles,
-  chartData,
-]);
 
 
-/* ==========================================================
-SERVER ENTRY MODEL ENGINE
+    try {
 
-
- DISPLAY ONLY.
- 
- React DOES NOT:
-   - start engine
-   - stop engine
-   - resume engine
-   - update engine
-   - calculate direction
-   - calculate scans
-   - calculate votes
-   - calculate cycles
- 
- BACKEND IS THE ONLY ENGINE OWNER.
- ========================================================== */
-
-
-useEffect(() => {
-if (!selectedBot) {
-setEngineState(null);
-return;
-}
-
-
-let cancelled = false;
-
-async function loadEngineState() {
-  try {
-    const status =
-      await getEntryModelEngine(
-        selectedBot.id
+      markersRef.current.setMarkers(
+        markers
       );
 
-    if (cancelled) {
-      return;
+    } catch (error) {
+
+      console.warn(
+        "[Entry Model] Marker update failed:",
+        error
+      );
+
     }
 
-    setEngineState(
-      status
-    );
-
-    console.log(
-      "[Entry Model] SERVER STATE:",
-      status
-    );
-
-  } catch (err) {
-    if (cancelled) {
-      return;
-    }
-
-    console.error(
-      "[Entry Model] Engine status error:",
-      err
-    );
-
-    setError(
-      err?.message ||
-      "Failed to load Entry Model engine."
-    );
-  }
-}
-
-loadEngineState();
-
-const timer =
-  setInterval(
-    loadEngineState,
-    3000
-  );
-
-return () => {
-  cancelled = true;
-
-  clearInterval(
-    timer
-  );
-};
+  }, [
+    previousCycles,
+    chartData,
+  ]);
 
 
-}, [
-selectedBotId,
-]);
+  /* ==========================================================
+  BOT CHANGE
+  ========================================================== */
 
-/* ==========================================================
-BOT CHANGE
-========================================================== */
+  const handleBotChange =
+    (event) => {
 
-const handleBotChange =
-(event) => {
-const value =
-event.target.value;
+      const value =
+        event.target.value;
 
+      setSelectedBotId(
+        value
+      );
 
-  setSelectedBotId(
-    value
-  );
+      setCombinedState(
+        null
+      );
 
-  setEngineState(
-    null
-  );
+      setError("");
 
-  setError("");
+      setSuccess("");
 
-  setSuccess("");
-};
+    };
 
 
-/* ==========================================================
-RENDER
-========================================================== */
+  /* ==========================================================
+  RENDER
+  ========================================================== */
 
-return ( <div className="entry-model-page">
+  return (
 
+    <div className="entry-model-page">
 
-  {/* ====================================================
-      HEADER
-      ==================================================== */}
+      {/* ====================================================
+          HEADER
+          ==================================================== */}
 
-  <div className="entry-model-header">
+      <div className="entry-model-header">
 
-    <div>
+        <div>
 
-      <h1>
-        Entry Model
-      </h1>
+          <h1>
+            Entry Model
+          </h1>
 
-      {selectedBot && (
-        <div className="entry-model-symbol">
-          {selectedBot.symbol}
+          {selectedBot && (
+            <div className="entry-model-symbol">
+              {selectedBot.symbol}
+            </div>
+          )}
+
         </div>
-      )}
-
-    </div>
 
 
-    <div className="entry-model-selector">
+        <div className="entry-model-selector">
 
-      <label>
-        BOT
-      </label>
+          <label>
+            BOT
+          </label>
 
-      <select
-        value={
-          selectedBotId
-        }
-        onChange={
-          handleBotChange
-        }
-        disabled={
-          loadingBots
-        }
-      >
+          <select
+            value={
+              selectedBotId
+            }
+            onChange={
+              handleBotChange
+            }
+            disabled={
+              loadingBots
+            }
+          >
 
-        <option value="">
-          Select Bot
-        </option>
-
-        {bots.map(
-          (bot) => (
-            <option
-              key={
-                bot.id
-              }
-              value={
-                bot.id
-              }
-            >
-              {bot.name ||
-                bot.id ||
-                bot.symbol}
-              {" | "}
-              {bot.symbol}
-              {" | "}
-              {bot.direction}
+            <option value="">
+              Select Bot
             </option>
-          )
-        )}
 
-      </select>
+            {bots.map(
+              (bot) => (
 
-    </div>
+                <option
+                  key={
+                    bot.id
+                  }
+                  value={
+                    bot.id
+                  }
+                >
 
-  </div>
+                  {bot.name ||
+                    bot.id ||
+                    bot.symbol}
 
+                  {" | "}
 
-  {/* ====================================================
-      ERROR
-      ==================================================== */}
+                  {bot.symbol}
 
-  {error && (
-    <div className="entry-model-error">
-      {error}
-    </div>
-  )}
+                  {" | "}
 
+                  {bot.direction}
 
-  {/* ====================================================
-      SUCCESS
-      ==================================================== */}
+                </option>
 
-  {success && (
-    <div className="entry-model-success">
-      {success}
-    </div>
-  )}
+              )
+            )}
 
+          </select>
 
-  {/* ====================================================
-      STATUS
-      ==================================================== */}
+        </div>
 
-  <div className="entry-model-status">
-
-    <div className="entry-model-status-left">
-
-      <span className="entry-model-status-label">
-        Bot:
-      </span>
-
-      <span className="entry-model-status-value">
-        {selectedBot?.symbol ||
-          "NONE"}
-      </span>
+      </div>
 
 
-      <span className="entry-model-status-label">
-        Direction:
-      </span>
+      {/* ====================================================
+          ERROR
+          ==================================================== */}
 
-      <span className="entry-model-status-value">
-        {selectedBot?.direction ||
-          "NONE"}
-      </span>
-
-
-      <span className="entry-model-status-label">
-        Trigger:
-      </span>
-
-      <span
-        className={`entry-model-status-value ${
-          isArmed
-            ? "armed"
-            : "neutral"
-        }`}
-      >
-        {selectedBot
-          ? triggerState
-          : "NONE"}
-      </span>
-
-
-      <span className="entry-model-status-label">
-        Bot Status:
-      </span>
-
-      <span className="entry-model-status-value">
-        {botStatus ||
-          "NONE"}
-      </span>
-
-
-      <span className="entry-model-status-label">
-        Engine:
-      </span>
-
-      <span className="entry-model-status-value">
-        {running
-          ? "RUNNING"
-          : "STOPPED"}
-      </span>
-
-    </div>
-
-  </div>
-
-
-  {/* ====================================================
-      SCAN INFO
-      ==================================================== */}
-
-  <div className="entry-model-scan-info">
-
-    <div className="entry-model-scan-info-left">
-
-      <span className="entry-model-scan-label">
-        Current Cycle
-      </span>
-
-      <span className="entry-model-scan-count">
-        {scanCount} / 10
-      </span>
-
-    </div>
-
-
-    <div className="entry-model-scan-message">
-
-      {running
-        ? "Orderbook scan running every 1 minute"
-        : isArmed
-          ? "Entry Model engine stopped"
-          : "Waiting for bot to become ARMED"}
-
-    </div>
-
-  </div>
-
-
-  {/* ====================================================
-      CHART
-      ==================================================== */}
-
-  <div className="entry-model-chart-card">
-
-    <div className="entry-model-section-header">
-
-      <h2 className="entry-model-section-title">
-
-        {selectedBot?.symbol ||
-          "Chart"}
-
-        {" | "}
-
-        15m
-
-      </h2>
-
-
-      <span className="entry-model-chart-info">
-
-        {loadingChart
-          ? "Loading..."
-          : chartData.length > 0
-            ? `${chartData.length} candles`
-            : "No chart data"}
-
-      </span>
-
-    </div>
-
-
-    <div
-      ref={
-        chartContainerRef
-      }
-      className="entry-model-chart"
-    />
-
-
-    {!chartData.length &&
-      !loadingChart && (
-        <div className="entry-model-chart-empty">
-          No chart data available
+      {error && (
+        <div className="entry-model-error">
+          {error}
         </div>
       )}
 
-  </div>
+
+      {/* ====================================================
+          STATUS
+          ==================================================== */}
+
+      <div className="entry-model-status">
+
+        <div className="entry-model-status-left">
+
+          <span className="entry-model-status-label">
+            Bot:
+          </span>
+
+          <span className="entry-model-status-value">
+            {selectedBot?.symbol ||
+              "NONE"}
+          </span>
 
 
-  {/* ====================================================
-      CURRENT CYCLE
-      ==================================================== */}
+          <span className="entry-model-status-label">
+            Direction:
+          </span>
 
-  <div className="entry-model-table-card">
-
-    <div className="entry-model-table-header">
-
-      <h2 className="entry-model-table-title">
-        CURRENT CYCLE
-      </h2>
-
-      <span className="entry-model-cycle-count">
-        {scanCount} / 10
-      </span>
-
-    </div>
+          <span className="entry-model-status-value">
+            {combinedDirection !== "NEUTRAL"
+              ? combinedDirection
+              : botDirection}
+          </span>
 
 
-    <div className="entry-model-table-wrapper">
+          <span className="entry-model-status-label">
+            Trigger:
+          </span>
 
-      <table className="entry-model-table">
-
-        <thead>
-
-          <tr>
-
-            <th>
-              Time
-            </th>
-
-            <th>
-              Coin
-            </th>
-
-            <th>
-              Trend 15
-            </th>
-
-            <th>
-              Trend 20
-            </th>
-
-            <th>
-              Trend 30
-            </th>
-
-            <th>
-              Trend 60
-            </th>
-
-            <th>
-              Decision
-            </th>
-
-          </tr>
-
-        </thead>
+          <span
+            className={`entry-model-status-value ${
+              isArmed
+                ? "armed"
+                : "neutral"
+            }`}
+          >
+            {selectedBot
+              ? triggerState
+              : "NONE"}
+          </span>
 
 
-        <tbody>
+          <span className="entry-model-status-label">
+            Bot Status:
+          </span>
 
-          {currentScans.length === 0 ? (
-
-            <tr>
-
-              <td
-                colSpan="7"
-                className="entry-model-empty"
-              >
-
-                No scans yet.
-
-                <br />
-
-                Waiting for the next
-                orderbook scan.
-
-              </td>
-
-            </tr>
-
-          ) : (
-
-            currentScans.map(
-              (
-                scan,
-                index
-              ) => (
-
-                <tr
-                  key={
-                    scan?.id ||
-                    scan?.timestamp ||
-                    index
-                  }
-                >
-
-                  <td>
-
-                    {scan?.timestamp
-                      ? new Date(
-                          scan.timestamp
-                        ).toLocaleTimeString()
-                      : "--:--:--"}
-
-                  </td>
+          <span className="entry-model-status-value">
+            {botStatus ||
+              "NONE"}
+          </span>
 
 
-                  <td>
+          <span className="entry-model-status-label">
+            Combined:
+          </span>
 
-                    {scan?.symbol ||
-                      selectedBot?.symbol ||
-                      "-"}
+          <span className="entry-model-status-value">
+            {combinedRunning
+              ? "RUNNING"
+              : "STOPPED"}
+          </span>
 
-                  </td>
+        </div>
+
+      </div>
 
 
-                  {/* TREND 15 */}
+      {/* ====================================================
+          COMBINED HUNT STATUS
+          ==================================================== */}
 
-                  <td>
+      <div className="entry-model-scan-info">
 
-                    <span
-                      className={`entry-model-direction ${
-                        String(
-                          scan?.trend15 ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
+        <div className="entry-model-scan-info-left">
+
+          <span className="entry-model-scan-label">
+            Orderbook Hunt
+          </span>
+
+          <span className="entry-model-scan-count">
+
+            {orderbookScan}
+
+            {" / "}
+
+            {scansPerCycle}
+
+          </span>
+
+        </div>
+
+
+        <div className="entry-model-scan-message">
+
+          {combinedStateName ===
+            "ORDERBOOK_HUNT"
+
+            ? `Cycle ${orderbookCycle} / ${maxOrderbookCycles} | Confirmations ${confirmations} / ${requiredConfirmations}`
+
+            : combinedStateName ===
+              "PRICE_SIGNAL"
+
+            ? `Price Signal ${combinedDirection}`
+
+            : combinedStateName ===
+              "ENTRY"
+
+            ? `ENTRY READY | ${combinedDirection}`
+
+            : combinedStateName ===
+              "PYRAMID_FULL"
+
+            ? `PYRAMID FULL | ${pyramidCount} / ${maxPyramid}`
+
+            : combinedRunning
+              ? "Waiting for Price Model signal"
+              : "Combined Entry Model stopped"}
+
+        </div>
+
+      </div>
+
+
+      {/* ====================================================
+          CHART
+          ==================================================== */}
+
+      <div className="entry-model-chart-card">
+
+        <div className="entry-model-section-header">
+
+          <h2 className="entry-model-section-title">
+
+            {selectedBot?.symbol ||
+              "Chart"}
+
+            {" | "}
+
+            15m
+
+          </h2>
+
+
+          <span className="entry-model-chart-info">
+
+            {loadingChart
+              ? "Loading..."
+              : chartData.length > 0
+                ? `${chartData.length} candles`
+                : "No chart data"}
+
+          </span>
+
+        </div>
+
+
+        <div
+          ref={
+            chartContainerRef
+          }
+          className="entry-model-chart"
+        />
+
+
+        {!chartData.length &&
+          !loadingChart && (
+            <div className="entry-model-chart-empty">
+              No chart data available
+            </div>
+          )}
+
+      </div>
+
+
+      {/* ====================================================
+          CURRENT CYCLE
+          ==================================================== */}
+
+        <div className="entry-model-table-card">
+
+          <div className="entry-model-table-header">
+
+            <h2 className="entry-model-table-title">
+              CURRENT CYCLE
+            </h2>
+
+            <span className="entry-model-cycle-count">
+              {orderbookScan} / {scansPerCycle}
+            </span>
+
+          </div>
+
+
+          <div className="entry-model-table-wrapper">
+
+            <table className="entry-model-table">
+
+              <thead>
+
+                <tr>
+
+                  <th>
+                    Time
+                  </th>
+
+                  <th>
+                    Coin
+                  </th>
+
+                  <th>
+                    Direction
+                  </th>
+
+                  <th>
+                    Trend 10
+                  </th>
+
+                  <th>
+                    Trend 15
+                  </th>
+
+                  <th>
+                    Trend 25
+                  </th>
+
+                  <th>
+                    Trend 35
+                  </th>
+
+                  <th>
+                    Decision
+                  </th>
+
+                  <th>
+                    Confirmed
+                  </th>
+
+                </tr>
+
+              </thead>
+
+
+              <tbody>
+
+                {currentScans.length === 0 ? (
+
+                  <tr>
+
+                    <td
+                      colSpan="9"
+                      className="entry-model-empty"
                     >
 
-                      {scan?.trend15 ||
-                        "NEUTRAL"}
+                      No scans yet.
 
-                    </span>
+                      <br />
 
+                      Waiting for the next
+                      orderbook scan.
 
-                    {scan?.percentage15 !==
-                      null &&
-                      scan?.percentage15 !==
-                        undefined && (
+                      <br />
+                      <br />
 
-                        <small
-                          style={{
-                            marginLeft:
-                              "5px",
-                            opacity:
-                              0.7,
-                            fontSize:
-                              "11px",
-                          }}
-                        >
+                      <small>
+                        New scan every 20 seconds.
+                      </small>
 
-                          {
-                            scan.percentage15
-                          }%
+                    </td>
 
-                        </small>
+                  </tr>
 
-                      )}
+                ) : (
 
-                  </td>
+                  currentScans.map(
+                    (
+                      scan,
+                      index
+                    ) => (
 
+                      <tr
+                        key={
+                          scan?.id ||
+                          scan?.timestamp ||
+                          index
+                        }
+                      >
 
-                  {/* TREND 20 */}
+                        <td>
 
-                  <td>
+                          {scan?.timestamp
+                            ? new Date(
+                                scan.timestamp
+                              ).toLocaleTimeString()
+                            : "--:--:--"}
 
-                    <span
-                      className={`entry-model-direction ${
-                        String(
-                          scan?.trend20 ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
-                    >
-
-                      {scan?.trend20 ||
-                        "NEUTRAL"}
-
-                    </span>
+                        </td>
 
 
-                    {scan?.percentage20 !==
-                      null &&
-                      scan?.percentage20 !==
-                        undefined && (
+                        <td>
 
-                        <small
-                          style={{
-                            marginLeft:
-                              "5px",
-                            opacity:
-                              0.7,
-                            fontSize:
-                              "11px",
-                          }}
-                        >
+                          {scan?.symbol ||
+                            combinedState?.symbol ||
+                            selectedBot?.symbol ||
+                            "-"}
 
-                          {
-                            scan.percentage20
-                          }%
-
-                        </small>
-
-                      )}
-
-                  </td>
+                        </td>
 
 
-                  {/* TREND 30 */}
+                        <td>
 
-                  <td>
+                          <span
+                            className={`entry-model-decision ${
+                              String(
+                                scan?.direction ||
+                                combinedDirection ||
+                                "NEUTRAL"
+                              ).toLowerCase()
+                            }`}
+                          >
 
-                    <span
-                      className={`entry-model-direction ${
-                        String(
-                          scan?.trend30 ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
-                    >
+                            {scan?.direction ||
+                              combinedDirection ||
+                              "NEUTRAL"}
 
-                      {scan?.trend30 ||
-                        "NEUTRAL"}
+                          </span>
 
-                    </span>
-
-
-                    {scan?.percentage30 !==
-                      null &&
-                      scan?.percentage30 !==
-                        undefined && (
-
-                        <small
-                          style={{
-                            marginLeft:
-                              "5px",
-                            opacity:
-                              0.7,
-                            fontSize:
-                              "11px",
-                          }}
-                        >
-
-                          {
-                            scan.percentage30
-                          }%
-
-                        </small>
-
-                      )}
-
-                  </td>
+                        </td>
 
 
-                  {/* TREND 60 */}
+                        <td>
 
-                  <td>
+                          {renderDepthCell(
+                            scan,
+                            10,
+                            "trend10"
+                          )}
 
-                    <span
-                      className={`entry-model-direction ${
-                        String(
-                          scan?.trend60 ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
-                    >
-
-                      {scan?.trend60 ||
-                        "NEUTRAL"}
-
-                    </span>
+                        </td>
 
 
-                    {scan?.percentage60 !==
-                      null &&
-                      scan?.percentage60 !==
-                        undefined && (
+                        <td>
 
-                        <small
-                          style={{
-                            marginLeft:
-                              "5px",
-                            opacity:
-                              0.7,
-                            fontSize:
-                              "11px",
-                          }}
-                        >
+                          {renderDepthCell(
+                            scan,
+                            15,
+                            "trend15"
+                          )}
 
-                          {
-                            scan.percentage60
-                          }%
-
-                        </small>
-
-                      )}
-
-                  </td>
+                        </td>
 
 
-                  {/* DECISION */}
+                        <td>
 
-                  <td>
+                          {renderDepthCell(
+                            scan,
+                            25,
+                            "trend25"
+                          )}
 
-                    <span
-                      className={`entry-model-decision ${
-                        String(
-                          scan?.decision ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
-                    >
+                        </td>
 
-                      {scan?.decision ||
-                        "NEUTRAL"}
 
-                    </span>
+                        <td>
+
+                          {renderDepthCell(
+                            scan,
+                            35,
+                            "trend35"
+                          )}
+
+                        </td>
+
+
+                        <td>
+
+                          <span
+                            className={`entry-model-decision ${
+                              String(
+                                scan?.decision ||
+                                "NEUTRAL"
+                              ).toLowerCase()
+                            }`}
+                          >
+
+                            {scan?.decision ||
+                              "NEUTRAL"}
+
+                          </span>
+
+                        </td>
+
+
+                        <td>
+
+                          <span
+                            className={`entry-model-decision ${
+                              scan?.confirmed
+                                ? "long"
+                                : "neutral"
+                            }`}
+                          >
+
+                            {scan?.confirmed
+                              ? "YES"
+                              : "NO"}
+
+                          </span>
+
+                        </td>
+
+                      </tr>
+
+                    )
+                  )
+
+                )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+
+      {/* ====================================================
+          PREVIOUS CYCLES
+          ==================================================== */}
+
+      <div className="entry-model-table-card">
+
+        <div className="entry-model-table-header">
+
+          <h2 className="entry-model-table-title">
+            PREVIOUS CYCLES
+          </h2>
+
+          <span className="entry-model-cycle-count">
+
+            {previousCycles.length}
+            {" completed"}
+
+          </span>
+
+        </div>
+
+
+        <div className="entry-model-table-wrapper">
+
+          <table className="entry-model-table">
+
+            <thead>
+
+              <tr>
+
+                <th>
+                  Time
+                </th>
+
+                <th>
+                  Coin
+                </th>
+
+                <th>
+                  Direction
+                </th>
+
+                <th>
+                  Confirmations
+                </th>
+
+                <th>
+                  Scans
+                </th>
+
+                <th>
+                  Decision
+                </th>
+
+              </tr>
+
+            </thead>
+
+
+            <tbody>
+
+              {sortedPreviousCycles.length === 0 ? (
+
+                <tr>
+
+                  <td
+                    colSpan="6"
+                    className="entry-model-empty"
+                  >
+
+                    No completed orderbook
+                    hunt cycles yet.
 
                   </td>
 
                 </tr>
 
-              )
-            )
+              ) : (
 
-          )}
-
-        </tbody>
-
-      </table>
-
-    </div>
-
-  </div>
-
-
-  {/* ====================================================
-      PREVIOUS CYCLES
-      ==================================================== */}
-
-  <div className="entry-model-table-card">
-
-    <div className="entry-model-table-header">
-
-      <h2 className="entry-model-table-title">
-        PREVIOUS CYCLES
-      </h2>
-
-      <span className="entry-model-cycle-count">
-        {previousCycles.length} completed
-      </span>
-
-    </div>
-
-
-    <div className="entry-model-table-wrapper">
-
-      <table className="entry-model-table">
-
-        <thead>
-
-          <tr>
-
-            <th>
-              Time
-            </th>
-
-            <th>
-              Coin
-            </th>
-
-            <th>
-              Bot
-            </th>
-
-            <th>
-              Trend 15
-            </th>
-
-            <th>
-              Trend 20
-            </th>
-
-            <th>
-              Trend 30
-            </th>
-
-            <th>
-              Trend 60
-            </th>
-
-            <th>
-              Votes
-            </th>
-
-            <th>
-              Scans
-            </th>
-
-            <th>
-              Decision
-            </th>
-
-          </tr>
-
-        </thead>
-
-
-        <tbody>
-
-          {sortedPreviousCycles.length === 0 ? (
-
-            <tr>
-
-              <td
-                colSpan="10"
-                className="entry-model-empty"
-              >
-
-                No completed cycles yet.
-
-                <br />
-
-                The current cycle will move
-                here after 10 scans.
-
-              </td>
-
-            </tr>
-
-          ) : (
-
-            sortedPreviousCycles.map(
-              (
-                cycle,
-                index
-              ) => (
-
-                <tr
-                  key={
-                    cycle?.id ||
-                    cycle?.timestamp ||
+                sortedPreviousCycles.map(
+                  (
+                    cycle,
                     index
-                  }
-                >
+                  ) => (
 
-                  {/* TIME */}
-
-                  <td>
-
-                   {cycle?.completedAt
-                    ? new Date(
-                        cycle.completedAt
-                      ).toLocaleTimeString()
-                    : "--:--:--"}
-
-                  </td>
-
-
-                  {/* COIN */}
-
-                  <td>
-
-                    {cycle?.symbol ||
-                      "-"}
-
-                  </td>
-
-
-                  {/* BOT */}
-
-                  <td>
-
-                    <span
-                      className={`entry-model-direction ${
-                        String(
-                          cycle?.botDirection ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
+                    <tr
+                      key={
+                        cycle?.id ||
+                        cycle?.timestamp ||
+                        cycle?.completedAt ||
+                        index
+                      }
                     >
 
-                      {cycle?.botDirection ||
-                        "NEUTRAL"}
+                      <td>
 
-                    </span>
+                        {cycle?.completedAt
+                          ? new Date(
+                              cycle.completedAt
+                            ).toLocaleTimeString()
+                          : "--:--:--"}
 
-                  </td>
-
-
-                  {/* TREND 15 */}
-
-                  <td>
-
-                    <span
-                      className={`entry-model-direction ${
-                        String(
-                          cycle?.trend15 ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
-                    >
-
-                      {cycle?.trend15 ||
-                        "NEUTRAL"}
-
-                    </span>
-
-                  </td>
+                      </td>
 
 
-                  {/* TREND 20 */}
+                      <td>
 
-                  <td>
+                        {cycle?.symbol ||
+                          combinedState?.symbol ||
+                          selectedBot?.symbol ||
+                          "-"}
 
-                    <span
-                      className={`entry-model-direction ${
-                        String(
-                          cycle?.trend20 ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
-                    >
-
-                      {cycle?.trend20 ||
-                        "NEUTRAL"}
-
-                    </span>
-
-                  </td>
+                      </td>
 
 
-                  {/* TREND 30 */}
+                      <td>
 
-                  <td>
+                        <span
+                          className={`entry-model-direction ${
+                            String(
+                              cycle?.direction ||
+                              cycle?.botDirection ||
+                              "NEUTRAL"
+                            ).toLowerCase()
+                          }`}
+                        >
 
-                    <span
-                      className={`entry-model-direction ${
-                        String(
-                          cycle?.trend30 ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
-                    >
+                          {cycle?.direction ||
+                            cycle?.botDirection ||
+                            "NEUTRAL"}
 
-                      {cycle?.trend30 ||
-                        "NEUTRAL"}
+                        </span>
 
-                    </span>
-
-                  </td>
-
-
-                  {/* TREND 60 */}
-
-                  <td>
-
-                    <span
-                      className={`entry-model-direction ${
-                        String(
-                          cycle?.trend60 ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
-                    >
-
-                      {cycle?.trend60 ||
-                        "NEUTRAL"}
-
-                    </span>
-
-                  </td>
+                      </td>
 
 
-                  {/* VOTES */}
+                      <td>
 
-                  <td>
+                        <span
+                          className={`entry-model-votes ${
+                            Number(
+                              cycle?.confirmations ??
+                              0
+                            ) >=
+                            Number(
+                              cycle?.requiredConfirmations ??
+                              3
+                            )
+                              ? "good"
+                              : "bad"
+                          }`}
+                        >
 
-                    <span
-                      className={`entry-model-votes ${
-                        Number(
-                          cycle?.votes || 0
-                        ) >= 6
-                          ? "good"
-                          : "bad"
-                      }`}
-                    >
+                          {cycle?.confirmations ??
+                            0}
 
-                      {cycle?.votes ??
-                        0}
+                          {" / "}
 
-                      {" / 10"}
+                          {cycle?.requiredConfirmations ??
+                            3}
 
-                    </span>
+                        </span>
 
-                  </td>
-
-
-                  {/* SCANS */}
-
-                  <td>
-
-                    {cycle?.totalScans ??
-                      0}
-
-                  </td>
+                      </td>
 
 
-                  {/* DECISION */}
+                      <td>
 
-                  <td>
+                        {cycle?.totalScans ??
+                          cycle?.scans ??
+                          0}
 
-                    <span
-                      className={`entry-model-decision ${
-                        String(
-                          cycle?.decision ||
-                          "NEUTRAL"
-                        ).toLowerCase()
-                      }`}
-                    >
+                      </td>
 
-                      {cycle?.decision ||
-                        "NEUTRAL"}
 
-                    </span>
+                      <td>
 
-                  </td>
+                        <span
+                          className={`entry-model-decision ${
+                            String(
+                              cycle?.decision ||
+                              "NEUTRAL"
+                            ).toLowerCase()
+                          }`}
+                        >
 
-                </tr>
+                          {cycle?.decision ||
+                            "NEUTRAL"}
 
-              )
-            )
+                        </span>
 
-          )}
+                      </td>
 
-        </tbody>
+                    </tr>
 
-      </table>
+                  )
+                )
+
+              )}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
 
     </div>
-
-  </div>
-
-</div>
-
-
-);
+  );
 }

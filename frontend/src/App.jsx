@@ -13,6 +13,7 @@ import ChartBot from "./pages/ChartBot";
 import BotManagement from "./pages/BotManagement";
 import EntryModel from "./pages/EntryModel";
 import EntryModelPrice from "./pages/EntryModelPrice";
+import EntryModelCombined from "./pages/EntryModelCombined";
 
 // ============================================================
 // APP
@@ -72,6 +73,13 @@ function App() {
               path="/entry-model-price"
               element={
                 <EntryModelPrice />
+              }
+            />
+
+            <Route
+              path="/entry-model-combined"
+              element={
+                <EntryModelCombined />
               }
             />
 

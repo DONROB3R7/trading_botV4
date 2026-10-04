@@ -12,14 +12,20 @@ const WeexClient =
 // The model:
 //   1. Fetches ONE 200-level WEEX orderbook snapshot
 //   2. Splits that SAME snapshot into:
+//        10
 //        15
-//        20
-//        30
-//        60
+//        25
+//        35
 //   3. Evaluates each depth
 //   4. Requires 3 of 4 confirmations
 //   5. Uses the BOT direction as the trend
-//   6. Looks for the OPPOSITE direction as a pullback
+//   6. Looks for STRONG ORDERBOOK DIRECTION
+//
+// LONG:
+//   Looks for LONG strength.
+//
+// SHORT:
+//   Looks for SHORT strength.
 //
 // IMPORTANT:
 //
@@ -41,10 +47,10 @@ const WEEX_REQUEST_DEPTH =
   200;
 
 const CONFIRMATION_DEPTHS = [
+  10,
   15,
-  20,
-  30,
-  60,
+  25,
+  35,
 ];
 
 const REQUIRED_CONFIRMATIONS =
@@ -391,7 +397,7 @@ class OrderbookEntryModel {
 
 
     // --------------------------------------------------------
-    // LONG
+    // LONG STRENGTH
     // --------------------------------------------------------
 
     const longImbalancePass =
@@ -408,7 +414,7 @@ class OrderbookEntryModel {
 
 
     // --------------------------------------------------------
-    // SHORT
+    // SHORT STRENGTH
     // --------------------------------------------------------
 
     const shortImbalancePass =
@@ -453,13 +459,6 @@ class OrderbookEntryModel {
     // PERCENTAGE
     // ========================================================
     //
-    // IMPORTANT:
-    //
-    // This is NOT a separate signal calculation.
-    //
-    // It simply reports the liquidity split of the
-    // direction that actually passed the filter.
-    //
     // LONG:
     //   BID / TOTAL
     //
@@ -468,8 +467,6 @@ class OrderbookEntryModel {
     //
     // NEUTRAL:
     //   null
-    //
-    // We NEVER show a fake 50%.
     //
     // ========================================================
 
@@ -629,22 +626,25 @@ class OrderbookEntryModel {
       );
 
 
-    // --------------------------------------------------------
-    // Opposite direction = pullback
-    // --------------------------------------------------------
-
-    const pullbackDirection =
-      direction ===
-      "LONG"
-        ? "SHORT"
-        : "LONG";
-
+    // ========================================================
+    // SAME-DIRECTION CONFIRMATION
+    // ========================================================
+    //
+    // LONG bot:
+    //   We want LONG orderbook strength.
+    //
+    // SHORT bot:
+    //   We want SHORT orderbook strength.
+    //
+    // NO PULLBACK.
+    //
+    // ========================================================
 
     const passedDepths =
       depths.filter(
         (result) =>
           result.direction ===
-          pullbackDirection
+          direction
       );
 
 
@@ -652,7 +652,7 @@ class OrderbookEntryModel {
       passedDepths.length;
 
 
-    const pullbackConfirmed =
+    const directionConfirmed =
       confirmations >=
       REQUIRED_CONFIRMATIONS;
 
@@ -662,7 +662,7 @@ class OrderbookEntryModel {
     // --------------------------------------------------------
 
     const decision =
-      pullbackConfirmed
+      directionConfirmed
         ? direction
         : "NEUTRAL";
 
@@ -672,11 +672,9 @@ class OrderbookEntryModel {
       botDirection:
         direction,
 
-      pullbackDirection,
-
       decision,
 
-      pullbackConfirmed,
+      directionConfirmed,
 
       confirmations,
 
@@ -685,6 +683,9 @@ class OrderbookEntryModel {
 
       totalDepths:
         CONFIRMATION_DEPTHS.length,
+
+      confirmationDepths:
+        CONFIRMATION_DEPTHS,
 
       depths,
 
@@ -753,7 +754,7 @@ class OrderbookEntryModel {
 
 
     console.log(
-      `[Entry Model] ${normalizedSymbol} | Bot=${result.botDirection} | Pullback=${result.pullbackDirection} | Confirmations=${result.confirmations}/${result.totalDepths} | Decision=${result.decision}`
+      `[Entry Model] ${normalizedSymbol} | Bot=${result.botDirection} | SameDirection=${result.botDirection} | Confirmations=${result.confirmations}/${result.totalDepths} | Decision=${result.decision}`
     );
 
 
@@ -773,3 +774,4 @@ class OrderbookEntryModel {
 
 module.exports =
   OrderbookEntryModel;
+

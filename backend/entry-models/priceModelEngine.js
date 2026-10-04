@@ -19,65 +19,15 @@ const MarketData = require("../../market/marketData");
 // MOVEMENT BASELINE:
 //   Last 1000 x 1m candles
 //
-//   For every window:
-//     1. Calculate all historical NET movements
-//     2. Average ALL movements = normal movement
-//     3. Take the 4 BIGGEST movements
-//     4. Average those 4 = high movement
-//     5. Biggest single movement = extreme
-//
-// MOVEMENT THRESHOLD:
-//
-//   Vs Average < 100%
-//      -> FINAL MOVEMENT DIRECTION = NEUTRAL
-//
-//   Vs Average >= 100%
-//      -> FINAL MOVEMENT DIRECTION = actual direction
-//
-//   IMPORTANT:
-//   The threshold does NOT remove or change the directional
-//   strength percentage.
-//
-//   Example:
-//
-//     SHORT 59.40%
-//     Vs Average = 55.1%
-//
-//     -> NEUTRAL 59.40%
-//
-//   The 59.40% strength remains visible.
-//
-//   The threshold only decides whether that direction is
-//   strong enough in terms of actual NET movement.
-//
-// CONFIRMATION:
-//
-//   The 5 entry windows use the FINAL movement-filtered
-//   direction.
-//
-//   LONG bot:
-//     3 of 5 SHORT windows = LONG
-//
-//   SHORT bot:
-//     3 of 5 LONG windows = SHORT
-//
-//   NEUTRAL windows do not count as LONG or SHORT.
-//
-// JOKER:
-//   NOT IMPLEMENTED YET.
-//
-//   Future idea:
-//   Multiple windows approaching/touching HIGH
-//   can create a JOKER state.
-//
 // CYCLE:
 //   10 one-minute scans
 //   >= 6 / 10 = cycle direction
 //
-// NO:
-//   Order book
-//   Trading
-//   TP / SL
+// SERVER TIMER:
+//   Price Model scanning is owned by this backend engine.
+//
+//   React/page lifecycle does NOT control scanning.
+//
 // ============================================================
 
 const TREND_CANDLES = 200;
@@ -105,28 +55,14 @@ const HISTORY_LIMIT = 500;
 const KLINE_LIMIT = 1000;
 
 // ============================================================
-// MOVEMENT EXPERIMENT
+// SERVER SCAN TIMER
 // ============================================================
-//
-// Test this number later.
-//
-// 100 = current test
-//
-// Examples:
-//   50  -> movement becomes active earlier
-//   75  -> movement becomes active earlier
-//   100 -> current setting
-//   125 -> requires stronger movement
-//   150 -> requires much stronger movement
-//
-// Rule:
-//
-//   Vs Average < threshold
-//      -> NEUTRAL
-//
-//   Vs Average >= threshold
-//      -> actual LONG / SHORT direction
-//
+
+const SCAN_INTERVAL_MS =
+  60 * 1000;
+
+// ============================================================
+// MOVEMENT EXPERIMENT
 // ============================================================
 
 const MOVEMENT_NEUTRAL_THRESHOLD = 100;
@@ -136,6 +72,7 @@ class PriceModelEngine {
     botId,
     symbol = "",
     marketData = null,
+    onCycleComplete = null,
   }) {
     this.botId = String(botId);
 
@@ -147,6 +84,15 @@ class PriceModelEngine {
     this.marketData =
       marketData ||
       new MarketData();
+
+    // ========================================================
+    // PRICE CYCLE CALLBACK
+    // ========================================================
+
+    this.onCycleComplete =
+      typeof onCycleComplete === "function"
+        ? onCycleComplete
+        : null;
 
     // ========================================================
     // RUNTIME
@@ -167,6 +113,14 @@ class PriceModelEngine {
     this.lastCycleAt = null;
 
     this.lastCandleTime = null;
+
+    // ========================================================
+    // SERVER TIMER
+    // ========================================================
+
+    this.scanTimer = null;
+
+    this.scanRunning = false;
 
     // ========================================================
     // CURRENT CYCLE
@@ -246,6 +200,9 @@ class PriceModelEngine {
 
         movementNeutralThreshold:
           MOVEMENT_NEUTRAL_THRESHOLD,
+
+        scanIntervalMs:
+          SCAN_INTERVAL_MS,
       },
     };
   }
@@ -255,18 +212,110 @@ class PriceModelEngine {
   // ==========================================================
 
   async start() {
+    if (this.running) {
+      console.log(
+        `[Price Model] START IGNORED | ` +
+        `Already running | ` +
+        `Bot=${this.botId}`
+      );
+
+      return this.getState();
+    }
+
     this.running = true;
 
     await this.updateCurrentPrice();
+
+    this.startScanTimer();
+
+    try {
+      await this.runAutomaticScan();
+    } catch (error) {
+      console.error(
+        `[Price Model] INITIAL SCAN ERROR | ` +
+        `Bot=${this.botId} | ` +
+        `${error.message}`
+      );
+    }
 
     console.log(
       `[Price Model] START | ` +
       `Bot=${this.botId} | ` +
       `Symbol=${this.symbol} | ` +
-      `Bias=${this.bias}`
+      `Bias=${this.bias} | ` +
+      `Timer=${SCAN_INTERVAL_MS}ms`
     );
 
     return this.getState();
+  }
+
+  // ==========================================================
+  // START SCAN TIMER
+  // ==========================================================
+
+  startScanTimer() {
+    if (this.scanTimer) {
+      clearInterval(
+        this.scanTimer
+      );
+
+      this.scanTimer = null;
+    }
+
+    this.scanTimer =
+      setInterval(
+        async () => {
+          if (!this.running) {
+            return;
+          }
+
+          await this.runAutomaticScan();
+        },
+        SCAN_INTERVAL_MS
+      );
+
+    console.log(
+      `[Price Model] TIMER START | ` +
+      `Bot=${this.botId} | ` +
+      `Interval=${SCAN_INTERVAL_MS}ms`
+    );
+  }
+
+  // ==========================================================
+  // AUTOMATIC SCAN
+  // ==========================================================
+
+  async runAutomaticScan() {
+    if (!this.running) {
+      return null;
+    }
+
+    if (this.scanRunning) {
+      console.log(
+        `[Price Model] AUTO SCAN SKIPPED | ` +
+        `Scan already running | ` +
+        `Bot=${this.botId}`
+      );
+
+      return null;
+    }
+
+    this.scanRunning = true;
+
+    try {
+      return await this.runScan();
+    } catch (error) {
+      console.error(
+        `[Price Model] AUTO SCAN ERROR | ` +
+        `Bot=${this.botId} | ` +
+        `Symbol=${this.symbol} | ` +
+        `${error.message}`
+      );
+
+      return null;
+    } finally {
+      this.scanRunning = false;
+    }
   }
 
   // ==========================================================
@@ -275,6 +324,14 @@ class PriceModelEngine {
 
   stop() {
     this.running = false;
+
+    if (this.scanTimer) {
+      clearInterval(
+        this.scanTimer
+      );
+
+      this.scanTimer = null;
+    }
 
     console.log(
       `[Price Model] STOP | ` +
@@ -401,10 +458,7 @@ class PriceModelEngine {
         KLINE_LIMIT
       );
 
-    const candles =
-      this.normalizeCandles(raw);
-
-    return candles;
+    return this.normalizeCandles(raw);
   }
 
   // ==========================================================
@@ -531,43 +585,6 @@ class PriceModelEngine {
   // ==========================================================
   // HISTORICAL NET MOVEMENT BASELINE
   // ==========================================================
-  //
-  // For every window:
-  //
-  //   10m
-  //   15m
-  //   20m
-  //   30m
-  //   60m
-  //
-  // We look through the historical candles and calculate
-  // the REAL NET movement from start close to end close.
-  //
-  // Example for 60m:
-  //
-  //   candle 0 close -> candle 60 close
-  //   candle 1 close -> candle 61 close
-  //   candle 2 close -> candle 62 close
-  //   ...
-  //
-  // Movement:
-  //
-  //   ABS(
-  //     (end - start) / start
-  //   ) * 100
-  //
-  // Then:
-  //
-  //   averageMove
-  //       = average of ALL historical moves
-  //
-  //   highMove
-  //       = average of the 4 BIGGEST historical moves
-  //
-  //   extremeMove
-  //       = biggest single historical move
-  //
-  // ==========================================================
 
   calculateHistoricalWindowMovement(
     candles,
@@ -614,39 +631,22 @@ class PriceModelEngine {
     if (!movements.length) {
       return {
         window: windowSize,
-
         samples: 0,
-
         averageMove: null,
-
         highMove: null,
-
         extremeMove: null,
-
         medianMove: null,
-
         minimumMove: null,
-
         maximumMove: null,
-
         rangeMove: null,
-
         ready: false,
       };
     }
-
-    // --------------------------------------------------------
-    // SORT
-    // --------------------------------------------------------
 
     const sorted =
       [...movements].sort(
         (a, b) => a - b
       );
-
-    // --------------------------------------------------------
-    // AVERAGE
-    // --------------------------------------------------------
 
     const averageMove =
       movements.reduce(
@@ -655,10 +655,6 @@ class PriceModelEngine {
         0
       ) /
       movements.length;
-
-    // --------------------------------------------------------
-    // MEDIAN
-    // --------------------------------------------------------
 
     const middle =
       Math.floor(
@@ -672,12 +668,6 @@ class PriceModelEngine {
             sorted[middle]
           ) / 2
         : sorted[middle];
-
-    // --------------------------------------------------------
-    // HIGH
-    //
-    // Average of the TOP 4 historical movements.
-    // --------------------------------------------------------
 
     const highCount =
       Math.min(
@@ -698,20 +688,10 @@ class PriceModelEngine {
       ) /
       highCount;
 
-    // --------------------------------------------------------
-    // EXTREME
-    //
-    // Single biggest historical movement.
-    // --------------------------------------------------------
-
     const extremeMove =
       sorted[
         sorted.length - 1
       ];
-
-    // --------------------------------------------------------
-    // RANGE
-    // --------------------------------------------------------
 
     const minimumMove =
       sorted[0];
@@ -790,32 +770,20 @@ class PriceModelEngine {
     ) {
       return {
         window: windowSize,
-
         normalMove: 0,
-
         highMove: 0,
-
         highAverageMove: 0,
-
         extremeMove: 0,
-
         actualMove: 0,
-
         actualMoveAbsolute: 0,
-
         moveVsNormal: 0,
-
         moveVsHighAverage: 0,
-
         movementDirection:
           "NEUTRAL",
-
         rawMovementDirection:
           "NEUTRAL",
-
         direction:
           "NEUTRAL",
-
         ready: false,
       };
     }
@@ -843,12 +811,8 @@ class PriceModelEngine {
       );
 
     if (
-      !Number.isFinite(
-        startPrice
-      ) ||
-      !Number.isFinite(
-        endPrice
-      ) ||
+      !Number.isFinite(startPrice) ||
+      !Number.isFinite(endPrice) ||
       startPrice === 0
     ) {
       return {
@@ -899,10 +863,6 @@ class PriceModelEngine {
       };
     }
 
-    // --------------------------------------------------------
-    // ACTUAL NET MOVEMENT
-    // --------------------------------------------------------
-
     const actualMove =
       (
         (endPrice -
@@ -914,10 +874,6 @@ class PriceModelEngine {
       Math.abs(
         actualMove
       );
-
-    // --------------------------------------------------------
-    // HISTORICAL VALUES
-    // --------------------------------------------------------
 
     const normalMove =
       Number(
@@ -937,16 +893,8 @@ class PriceModelEngine {
           0
       );
 
-    // Keep old field name available
-    // so existing frontend code does
-    // not suddenly break.
-
     const highAverageMove =
       highMove;
-
-    // --------------------------------------------------------
-    // CURRENT VS NORMAL
-    // --------------------------------------------------------
 
     let moveVsNormal = 0;
 
@@ -960,10 +908,6 @@ class PriceModelEngine {
         ) * 100;
     }
 
-    // --------------------------------------------------------
-    // CURRENT VS HIGH
-    // --------------------------------------------------------
-
     let moveVsHighAverage = 0;
 
     if (
@@ -975,12 +919,6 @@ class PriceModelEngine {
           highMove
         ) * 100;
     }
-
-    // --------------------------------------------------------
-    // RAW MOVEMENT DIRECTION
-    //
-    // Before applying the threshold.
-    // --------------------------------------------------------
 
     let rawMovementDirection =
       "NEUTRAL";
@@ -996,20 +934,6 @@ class PriceModelEngine {
       rawMovementDirection =
         "SHORT";
     }
-
-    // --------------------------------------------------------
-    // MOVEMENT DIRECTION
-    //
-    // CAVEMAN RULE:
-    //
-    // Vs Average < threshold
-    //    -> NEUTRAL
-    //
-    // Vs Average >= threshold
-    //    -> LONG / SHORT
-    //
-    // Current threshold = 100%
-    // --------------------------------------------------------
 
     let movementDirection =
       "NEUTRAL";
@@ -1044,11 +968,6 @@ class PriceModelEngine {
       rawMovementDirection,
 
       movementDirection,
-
-      // Final movement-filtered direction.
-      //
-      // This is now used by the ENTRY WINDOW itself
-      // and by the 3-of-5 confirmation logic.
 
       direction:
         movementDirection,
@@ -1094,23 +1013,14 @@ class PriceModelEngine {
     ) {
       return {
         window: windowSize,
-
         direction: "NEUTRAL",
-
         rawDirection: "NEUTRAL",
-
         strength: 0,
-
         upStrength: 0,
-
         downStrength: 0,
-
         upMovement: 0,
-
         downMovement: 0,
-
         totalMovement: 0,
-
         ready: false,
       };
     }
@@ -1145,12 +1055,8 @@ class PriceModelEngine {
         );
 
       if (
-        !Number.isFinite(
-          previous
-        ) ||
-        !Number.isFinite(
-          current
-        ) ||
+        !Number.isFinite(previous) ||
+        !Number.isFinite(current) ||
         previous === 0
       ) {
         continue;
@@ -1185,23 +1091,14 @@ class PriceModelEngine {
     ) {
       return {
         window: windowSize,
-
         direction: "NEUTRAL",
-
         rawDirection: "NEUTRAL",
-
         strength: 0,
-
         upStrength: 0,
-
         downStrength: 0,
-
         upMovement,
-
         downMovement,
-
         totalMovement,
-
         ready: true,
       };
     }
@@ -1341,29 +1238,6 @@ class PriceModelEngine {
   // ==========================================================
   // ENTRY WINDOW
   // ==========================================================
-  //
-  // IMPORTANT:
-  //
-  // Directional strength remains unchanged.
-  //
-  // strength:
-  //   still comes from the directional model.
-  //
-  // rawDirection:
-  //   still shows the raw directional result.
-  //
-  // direction:
-  //   now comes from the movement threshold.
-  //
-  // Example:
-  //
-  //   rawDirection = SHORT
-  //   strength     = 59.40%
-  //   moveVsNormal = 55.1%
-  //
-  //   final direction = NEUTRAL
-  //
-  // ==========================================================
 
   calculateEntry(
     candles,
@@ -1387,16 +1261,6 @@ class PriceModelEngine {
     return {
       ...directional,
 
-      // ------------------------------------------------------
-      // FINAL ENTRY DIRECTION
-      //
-      // Movement threshold controls whether the direction
-      // is active or NEUTRAL.
-      //
-      // Strength is NOT changed.
-      // rawDirection is NOT changed.
-      // ------------------------------------------------------
-
       direction:
         movement.direction,
 
@@ -1406,37 +1270,6 @@ class PriceModelEngine {
 
   // ==========================================================
   // ENTRY CONFIRMATION / PULLBACK
-  // ==========================================================
-  //
-  // IMPORTANT:
-  //
-  // Confirmation now uses:
-  //
-  //   entry.direction
-  //
-  // NOT:
-  //
-  //   entry.rawDirection
-  //
-  // Therefore the movement threshold is part of the
-  // 3-of-5 confirmation.
-  //
-  // Example:
-  //
-  //   10m SHORT 59.40% -> NEUTRAL
-  //   15m SHORT 61.69% -> NEUTRAL
-  //   20m SHORT 51.10% -> NEUTRAL
-  //   30m LONG  54.07% -> NEUTRAL
-  //   60m SHORT 50.55% -> NEUTRAL
-  //
-  // Result:
-  //
-  //   0 LONG
-  //   0 SHORT
-  //   5 NEUTRAL
-  //
-  // No pullback confirmation.
-  //
   // ==========================================================
 
   calculateEntryConfirmation(
@@ -1458,15 +1291,6 @@ class PriceModelEngine {
     for (
       const entry of list
     ) {
-      // ------------------------------------------------------
-      // IMPORTANT:
-      //
-      // Use the FINAL movement-filtered direction.
-      //
-      // rawDirection remains available for diagnostics,
-      // but it does NOT count toward confirmation.
-      // ------------------------------------------------------
-
       const direction =
         entry?.direction ||
         "NEUTRAL";
@@ -1494,15 +1318,6 @@ class PriceModelEngine {
     let confirmed =
       false;
 
-    // --------------------------------------------------------
-    // LONG BOT
-    //
-    // We WANT a SHORT pullback.
-    //
-    // 3 of 5 SHORT windows
-    // = LONG signal
-    // --------------------------------------------------------
-
     if (
       trend?.direction ===
       "LONG"
@@ -1523,18 +1338,7 @@ class PriceModelEngine {
         confirmed =
           true;
       }
-    }
-
-    // --------------------------------------------------------
-    // SHORT BOT
-    //
-    // We WANT a LONG pullback.
-    //
-    // 3 of 5 LONG windows
-    // = SHORT signal
-    // --------------------------------------------------------
-
-    else if (
+    } else if (
       trend?.direction ===
       "SHORT"
     ) {
@@ -1607,27 +1411,15 @@ class PriceModelEngine {
           )
         : this.currentPrice;
 
-    // --------------------------------------------------------
-    // HISTORICAL MOVEMENT BASELINES
-    // --------------------------------------------------------
-
     const movementBaselines =
       this.calculateMovementBaselines(
         candles
       );
 
-    // --------------------------------------------------------
-    // TREND
-    // --------------------------------------------------------
-
     const trend =
       this.calculateTrend(
         candles
       );
-
-    // --------------------------------------------------------
-    // ENTRY WINDOWS
-    // --------------------------------------------------------
 
     const entries = {};
 
@@ -1644,10 +1436,6 @@ class PriceModelEngine {
           ]
         );
     }
-
-    // --------------------------------------------------------
-    // CONFIRMATION
-    // --------------------------------------------------------
 
     const confirmation =
       this.calculateEntryConfirmation(
@@ -1699,10 +1487,6 @@ class PriceModelEngine {
         "1m",
 
       price,
-
-      // ------------------------------------------------------
-      // MOVEMENT BASELINE DATA
-      // ------------------------------------------------------
 
       movementBaseline: {
         candlesUsed:
@@ -1996,6 +1780,10 @@ class PriceModelEngine {
     let completedCycle =
       null;
 
+    // ========================================================
+    // COMPLETE PRICE CYCLE
+    // ========================================================
+
     if (
       added &&
       this.currentScans.length >=
@@ -2003,6 +1791,73 @@ class PriceModelEngine {
     ) {
       completedCycle =
         this.completeCycle();
+
+      // ------------------------------------------------------
+      // SIGNAL FOUND
+      // ------------------------------------------------------
+
+      if (
+        completedCycle &&
+        (
+          completedCycle.decision === "LONG" ||
+          completedCycle.decision === "SHORT"
+        )
+      ) {
+        this.stop();
+
+        console.log(
+          `[Price Model] SIGNAL FOUND | ` +
+          `Bot=${this.botId} | ` +
+          `Decision=${completedCycle.decision} | ` +
+          `SCANNING STOPPED`
+        );
+      }
+
+      // ======================================================
+      // SEND COMPLETED PRICE CYCLE TO BOTMODELS
+      // ======================================================
+      //
+      // CRITICAL:
+      //
+      // BotModels callback signature:
+      //
+      //   (botId, cycle)
+      //
+      // Therefore we MUST send:
+      //
+      //   this.botId
+      //   completedCycle
+      //
+      // NOT:
+      //
+      //   completedCycle
+      //
+      // ======================================================
+
+      if (
+        completedCycle &&
+        this.onCycleComplete
+      ) {
+        try {
+          console.log(
+            `[Price Model] CALLBACK → BOTMODELS | ` +
+            `Bot=${this.botId} | ` +
+            `Cycle=${completedCycle.cycleId} | ` +
+            `Decision=${completedCycle.decision}`
+          );
+
+          this.onCycleComplete(
+            this.botId,
+            completedCycle
+          );
+        } catch (error) {
+          console.error(
+            `[Price Model] CYCLE CALLBACK ERROR | ` +
+            `Bot=${this.botId} | ` +
+            `${error.message}`
+          );
+        }
+      }
     }
 
     console.log(
@@ -2032,7 +1887,7 @@ class PriceModelEngine {
   // ==========================================================
 
   reset() {
-    this.running = false;
+    this.stop();
 
     this.scanCount = 0;
 

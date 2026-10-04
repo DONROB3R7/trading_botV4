@@ -1,0 +1,695 @@
+/* ============================================================
+   ENTRY MODEL COMBINED PAGE
+
+   Same visual style as EntryModelPrice
+   Fully isolated from other Entry Model pages
+   ============================================================ */
+
+.entry-model-page-combined {
+
+  width: 100%;
+
+  max-width: 1400px;
+
+  margin: 0 auto;
+
+  padding: 30px;
+
+  box-sizing: border-box;
+
+}
+
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.entry-model-page-combined .entry-model-header {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: flex-end;
+
+  gap: 20px;
+
+  margin-bottom: 18px;
+
+}
+
+.entry-model-page-combined .entry-model-header h1 {
+
+  margin: 0;
+
+  color: #f8fafc;
+
+  font-size: 28px;
+
+}
+
+.entry-model-page-combined .entry-model-subtitle {
+
+  margin-top: 7px;
+
+  color: #60a5fa;
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+}
+
+
+/* ============================================================
+   TOP CONTROLS
+   ============================================================ */
+
+.entry-model-page-combined .entry-model-controls {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+}
+
+.entry-model-page-combined
+.entry-model-controls select {
+
+  min-width: 180px;
+
+  height: 38px;
+
+  padding: 0 12px;
+
+  box-sizing: border-box;
+
+  color: #e2e8f0;
+
+  background: #0d1728;
+
+  border: 1px solid #1e3150;
+
+  border-radius: 7px;
+
+  font-size: 13px;
+
+  font-weight: 600;
+
+  outline: none;
+
+}
+
+.entry-model-page-combined
+.entry-model-controls select:focus {
+
+  border-color: #60a5fa;
+
+}
+
+
+/* ============================================================
+   TOP ACTION BUTTONS
+   ============================================================ */
+
+.entry-model-page-combined
+.entry-model-action-buttons {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 20px;
+  
+  margin: 25px 0;
+}
+
+
+/* COMMON BUTTON */
+
+.entry-model-page-combined
+.entry-model-action-buttons button {
+
+  min-width: 145px;
+
+  height: 38px;
+
+  padding: 0 16px;
+
+  border-radius: 7px;
+
+  font-size: 12px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.2px;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+
+}
+
+
+/* START */
+
+.entry-model-page-combined
+.entry-model-action-start {
+
+  color: #86efac;
+
+  background: #10251b;
+
+  border: 1px solid #285c3c;
+
+}
+
+.entry-model-page-combined
+.entry-model-action-start:hover:not(:disabled) {
+
+  background: #153522;
+
+  border-color: #3f8f5e;
+
+}
+
+
+/* STOP */
+
+.entry-model-page-combined
+.entry-model-action-stop {
+
+  color: #fca5a5;
+
+  background: #281519;
+
+  border: 1px solid #633039;
+
+}
+
+.entry-model-page-combined
+.entry-model-action-stop:hover:not(:disabled) {
+
+  background: #351a1f;
+
+  border-color: #8b424d;
+
+}
+
+
+/* DISABLED */
+
+.entry-model-page-combined
+.entry-model-action-buttons button:disabled {
+
+  opacity: 0.45;
+
+  cursor: not-allowed;
+
+}
+
+
+/* ============================================================
+   ERROR
+   ============================================================ */
+
+.entry-model-page-combined .entry-model-error {
+
+  margin-bottom: 18px;
+
+  padding: 12px 14px;
+
+  color: #fca5a5;
+
+  background: #281519;
+
+  border: 1px solid #633039;
+
+  border-radius: 8px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+}
+
+
+/* ============================================================
+   BOT INFO
+   ============================================================ */
+
+.entry-model-page-combined .entry-model-info {
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 1px;
+
+  margin-bottom: 18px;
+
+  background: #1e3150;
+
+  border: 1px solid #1e3150;
+
+  border-radius: 10px;
+
+  overflow: hidden;
+
+}
+
+.entry-model-page-combined
+.entry-model-info > div {
+
+  min-width: 0;
+
+  padding: 16px 18px;
+
+  background: #0d1728;
+
+}
+
+.entry-model-page-combined
+.entry-model-info span {
+
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: #64748b;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.5px;
+
+}
+
+.entry-model-page-combined
+.entry-model-info strong {
+
+  display: block;
+
+  overflow: hidden;
+
+  color: #e2e8f0;
+
+  font-size: 14px;
+
+  font-weight: 800;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+}
+
+.entry-model-page-combined
+.entry-model-info strong.long {
+
+  color: #86efac;
+
+}
+
+.entry-model-page-combined
+.entry-model-info strong.short {
+
+  color: #fca5a5;
+
+}
+
+.entry-model-page-combined
+.entry-model-info strong.neutral {
+
+  color: #fbbf24;
+
+}
+
+
+/* ============================================================
+   SECTION
+   ============================================================ */
+
+.entry-model-page-combined .entry-model-section {
+
+  margin-bottom: 18px;
+
+  background: #0d1728;
+
+  border: 1px solid #1e3150;
+
+  border-radius: 10px;
+
+  overflow: hidden;
+
+}
+
+
+/* ============================================================
+   SECTION HEADER
+   ============================================================ */
+
+.entry-model-page-combined .entry-model-section-header {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  min-height: 50px;
+
+  padding: 0 18px;
+
+  border-bottom: 1px solid #1b2b43;
+
+}
+
+.entry-model-page-combined
+.entry-model-section-header h2 {
+
+  margin: 0;
+
+  color: #e2e8f0;
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+}
+
+.entry-model-page-combined
+.entry-model-section-header > div {
+
+  color: #64748b;
+
+  font-size: 11px;
+
+  font-weight: 500;
+
+}
+
+
+/* ============================================================
+   COMBINED STATUS
+   ============================================================ */
+
+.entry-model-page-combined
+.entry-model-combined-status {
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+
+  gap: 1px;
+
+  background: #1e3150;
+
+}
+
+
+/* ============================================================
+   STATUS ROW / CARD
+   ============================================================ */
+
+.entry-model-page-combined
+.entry-model-combined-row {
+
+  min-width: 0;
+
+  padding: 20px;
+
+  background: #0d1728;
+
+}
+
+.entry-model-page-combined
+.entry-model-combined-row span {
+
+  display: block;
+
+  margin-bottom: 8px;
+
+  color: #64748b;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.5px;
+
+}
+
+.entry-model-page-combined
+.entry-model-combined-row strong {
+
+  display: block;
+
+  color: #e2e8f0;
+
+  font-size: 16px;
+
+  font-weight: 800;
+
+}
+
+.entry-model-page-combined
+.entry-model-combined-row strong.long {
+
+  color: #86efac;
+
+}
+
+.entry-model-page-combined
+.entry-model-combined-row strong.short {
+
+  color: #fca5a5;
+
+}
+
+.entry-model-page-combined
+.entry-model-combined-row strong.neutral {
+
+  color: #fbbf24;
+
+}
+
+
+/* ============================================================
+   FINAL STATE
+   ============================================================ */
+
+.entry-model-page-combined
+.entry-model-combined-final {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 20px;
+
+  min-height: 70px;
+
+  padding: 0 20px;
+
+  border-top: 1px solid #1b2b43;
+
+  background: #0d1728;
+
+}
+
+.entry-model-page-combined
+.entry-model-combined-final span {
+
+  color: #64748b;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.5px;
+
+}
+
+.entry-model-page-combined
+.entry-model-combined-final strong {
+
+  color: #e2e8f0;
+
+  font-size: 18px;
+
+  font-weight: 800;
+
+}
+
+
+/* ============================================================
+   MOBILE / TABLET
+   ============================================================ */
+
+@media (max-width: 1200px) {
+
+  .entry-model-page-combined
+  .entry-model-info {
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-combined-status {
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+  }
+
+}
+
+
+@media (max-width: 850px) {
+
+  .entry-model-page-combined {
+
+    padding: 20px;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-header {
+
+    flex-direction: column;
+
+    align-items: stretch;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-controls {
+
+    width: 100%;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-controls select {
+
+    flex: 1;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-action-buttons {
+
+    width: 100%;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-action-buttons button {
+
+    flex: 1;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-combined-status {
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  .entry-model-page-combined {
+
+    padding: 15px;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-header h1 {
+
+    font-size: 24px;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-controls {
+
+    flex-direction: column;
+
+    align-items: stretch;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-controls select {
+
+    width: 100%;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-action-buttons {
+
+    width: 100%;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-action-buttons button {
+
+    width: 100%;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-info {
+
+    grid-template-columns: 1fr;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-combined-status {
+
+    grid-template-columns: 1fr;
+
+  }
+
+  .entry-model-page-combined
+  .entry-model-combined-final {
+
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    justify-content: center;
+
+    gap: 6px;
+
+    padding: 16px 20px;
+
+  }
+
+}

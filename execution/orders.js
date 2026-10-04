@@ -98,6 +98,72 @@ class OrderService {
   }
 
   // ==========================================================
+  // GET SYMBOL PRICE PRECISION
+  // ==========================================================
+
+  async getPricePrecision(symbol) {
+    const normalizedSymbol =
+      String(symbol || "")
+        .toUpperCase()
+        .trim();
+
+    const symbolInfo =
+      await this.getSymbolInfo(
+        normalizedSymbol
+      );
+
+    const precision =
+      Number(
+        symbolInfo.pricePrecision
+      );
+
+    if (
+      !Number.isFinite(
+        precision
+      ) ||
+      precision < 0
+    ) {
+      throw new Error(
+        `Invalid pricePrecision for ${normalizedSymbol}: ${symbolInfo.pricePrecision}`
+      );
+    }
+
+    console.log(
+      `[TEST] PRICE PRECISION | ${normalizedSymbol} = ${precision}`
+    );
+
+    return precision;
+  }
+
+  // ==========================================================
+  // ROUND PRICE TO WEEX PRECISION
+  // ==========================================================
+
+  roundPrice(
+    price,
+    precision
+  ) {
+    const numericPrice =
+      Number(price);
+
+    if (
+      !Number.isFinite(
+        numericPrice
+      )
+    ) {
+      throw new Error(
+        `Invalid price: ${price}`
+      );
+    }
+
+    return Number(
+      numericPrice.toFixed(
+        precision
+      )
+    );
+  }
+
+  // ==========================================================
   // GET CURRENT SYMBOL PRICE
   // ==========================================================
 
@@ -159,31 +225,6 @@ class OrderService {
   // ==========================================================
   // CALCULATE ORDER QUANTITY
   // ==========================================================
-  //
-  // OLD BOT MODEL
-  //
-  //     Margin       = 1 USDT
-  //     Leverage     = 10x
-  //     Target size  = ~10 USDT
-  //
-  // IMPORTANT:
-  //
-  // We do NOT use contractVal here.
-  //
-  // Quantity is simply:
-  //
-  //     targetNotional / price
-  //
-  // Example:
-  //
-  //     Price = 0.1184
-  //
-  //     10 / 0.1184
-  //       = 84.46
-  //
-  // Then WEEX quantity rules are applied.
-  //
-  // ==========================================================
 
   async calculateOrderQuantity(
     symbol
@@ -203,10 +244,6 @@ class OrderService {
         normalizedSymbol
       );
 
-    // ========================================================
-    // LEVERAGE
-    // ========================================================
-
     const leverage =
       Number(
         this.defaultLeverage
@@ -221,26 +258,9 @@ class OrderService {
       );
     }
 
-    // ========================================================
-    // TARGET NOTIONAL
-    // ========================================================
-
     const targetNotional =
       this.defaultMargin *
       leverage;
-
-    // ========================================================
-    // RAW QUANTITY
-    // ========================================================
-    //
-    // OLD BOT FORMULA
-    //
-    //     quantity =
-    //       targetNotional / price
-    //
-    // NO CONTRACT VALUE.
-    //
-    // ========================================================
 
     const rawQuantity =
       targetNotional /
@@ -257,10 +277,6 @@ class OrderService {
       );
     }
 
-    // ========================================================
-    // WEEX QUANTITY PRECISION
-    // ========================================================
-
     const quantityPrecision =
       Number.isFinite(
         Number(
@@ -271,21 +287,6 @@ class OrderService {
             symbolInfo.quantityPrecision
           )
         : 8;
-
-    // ========================================================
-    // DETERMINE QUANTITY STEP
-    // ========================================================
-    //
-    // Positive precision:
-    //
-    //     2 = 0.01
-    //
-    // Negative precision:
-    //
-    //     -1 = 10
-    //     -2 = 100
-    //
-    // ========================================================
 
     let quantityStep;
 
@@ -308,20 +309,12 @@ class OrderService {
         );
     }
 
-    // ========================================================
-    // ROUND DOWN
-    // ========================================================
-
     let quantity =
       Math.floor(
         rawQuantity /
         quantityStep
       ) *
       quantityStep;
-
-    // ========================================================
-    // MINIMUM ORDER SIZE
-    // ========================================================
 
     const minOrderSize =
       Number(
@@ -339,10 +332,6 @@ class OrderService {
         minOrderSize;
     }
 
-    // ========================================================
-    // ALIGN TO STEP
-    // ========================================================
-
     if (
       quantityStep > 0
     ) {
@@ -353,10 +342,6 @@ class OrderService {
         ) *
         quantityStep;
     }
-
-    // ========================================================
-    // FINAL VALIDATION
-    // ========================================================
 
     if (
       !Number.isFinite(
@@ -372,10 +357,6 @@ class OrderService {
         `Precision=${quantityPrecision}`
       );
     }
-
-    // ========================================================
-    // MAXIMUM ORDER SIZE
-    // ========================================================
 
     const maxOrderSize =
       Number(
@@ -395,10 +376,6 @@ class OrderService {
       );
     }
 
-    // ========================================================
-    // MARKET OPEN LIMIT
-    // ========================================================
-
     const marketOpenLimitSize =
       Number(
         symbolInfo.marketOpenLimitSize
@@ -417,10 +394,6 @@ class OrderService {
       );
     }
 
-    // ========================================================
-    // FINAL SIZE CALCULATIONS
-    // ========================================================
-
     const estimatedNotional =
       markPrice *
       quantity;
@@ -428,10 +401,6 @@ class OrderService {
     const estimatedMargin =
       estimatedNotional /
       leverage;
-
-    // ========================================================
-    // LOG EVERYTHING
-    // ========================================================
 
     console.log(
       "=========================================================="
@@ -578,17 +547,9 @@ class OrderService {
       );
     }
 
-    // --------------------------------------------------------
-    // Set isolated 10x
-    // --------------------------------------------------------
-
     await this.setLeverage(
       normalizedSymbol
     );
-
-    // --------------------------------------------------------
-    // Calculate symbol-specific quantity
-    // --------------------------------------------------------
 
     const sizing =
       await this.calculateOrderQuantity(
@@ -597,11 +558,6 @@ class OrderService {
 
     const quantity =
       sizing.quantity;
-
-    // --------------------------------------------------------
-    // LONG = BUY
-    // SHORT = SELL
-    // --------------------------------------------------------
 
     const side =
       normalizedDirection ===
@@ -1266,6 +1222,15 @@ class OrderService {
         position.side || ""
       ).toUpperCase();
 
+    // ========================================================
+    // GET WEEX PRICE PRECISION
+    // ========================================================
+
+    const pricePrecision =
+      await this.getPricePrecision(
+        normalizedSymbol
+      );
+
     const size =
       Math.abs(
         Number(
@@ -1339,9 +1304,14 @@ class OrderService {
       );
     }
 
+    // ========================================================
+    // DYNAMIC WEEX PRICE PRECISION
+    // ========================================================
+
     takeProfit =
-      Number(
-        takeProfit.toFixed(5)
+      this.roundPrice(
+        takeProfit,
+        pricePrecision
       );
 
     let stopLoss;
@@ -1361,8 +1331,9 @@ class OrderService {
       }
 
       stopLoss =
-        Number(
-          originalStopLoss.toFixed(5)
+        this.roundPrice(
+          originalStopLoss,
+          pricePrecision
         );
 
     } else if (
@@ -1374,8 +1345,9 @@ class OrderService {
         (1 - sl / 100);
 
       stopLoss =
-        Number(
-          stopLoss.toFixed(5)
+        this.roundPrice(
+          stopLoss,
+          pricePrecision
         );
 
     } else {
@@ -1384,8 +1356,9 @@ class OrderService {
         (1 + sl / 100);
 
       stopLoss =
-        Number(
-          stopLoss.toFixed(5)
+        this.roundPrice(
+          stopLoss,
+          pricePrecision
         );
     }
 
@@ -1403,6 +1376,10 @@ class OrderService {
 
     console.log(
       `[TEST] TP=${takeProfit}`
+    );
+
+    console.log(
+      `[TEST] Price Precision=${pricePrecision}`
     );
 
     console.log(
@@ -1432,6 +1409,10 @@ class OrderService {
         executePrice:
           "0",
 
+        // IMPORTANT:
+        // Keep quantity=0.
+        // Previous tests showed that changing this
+        // can cause incorrect partial-close behavior.
         quantity:
           "0",
 
@@ -1490,6 +1471,8 @@ class OrderService {
         executePrice:
           "0",
 
+        // IMPORTANT:
+        // Keep quantity=0.
         quantity:
           "0",
 

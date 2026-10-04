@@ -18,8 +18,34 @@ const PriceModelEngine =
   require("./priceModelEngine");
 
 class PriceModelManager {
-  constructor() {
+  constructor({
+    onCycleComplete = null,
+  } = {}) {
     this.models = new Map();
+
+    this.onCycleComplete =
+      typeof onCycleComplete === "function"
+        ? onCycleComplete
+        : null;
+  }
+
+  // ==========================================================
+  // SET CYCLE COMPLETE HANDLER
+  // ==========================================================
+
+  setCycleCompleteHandler(handler) {
+    this.onCycleComplete =
+      typeof handler === "function"
+        ? handler
+        : null;
+
+    console.log(
+      `[Price Model] Cycle bridge ${
+        this.onCycleComplete
+          ? "CONNECTED"
+          : "DISCONNECTED"
+      }`
+    );
   }
 
   // ==========================================================
@@ -38,6 +64,53 @@ class PriceModelManager {
         new PriceModelEngine({
           botId: id,
           symbol: symbol,
+
+          // --------------------------------------------------
+          // IMPORTANT:
+          //
+          // PriceModelEngine now sends:
+          //
+          //   (botId, completedCycle)
+          //
+          // So this wrapper MUST receive both arguments.
+          // --------------------------------------------------
+
+          onCycleComplete: (
+            callbackBotId,
+            completedCycle
+          ) => {
+            if (!this.onCycleComplete) {
+              console.log(
+                `[Price Model] CYCLE BRIDGE | ` +
+                `No handler | ` +
+                `Bot=${callbackBotId}`
+              );
+
+              return null;
+            }
+
+            console.log(
+              `[Price Model] MANAGER BRIDGE | ` +
+              `Bot=${callbackBotId} | ` +
+              `Cycle=${completedCycle?.cycleId} | ` +
+              `Decision=${completedCycle?.decision}`
+            );
+
+            try {
+              return this.onCycleComplete(
+                callbackBotId,
+                completedCycle
+              );
+            } catch (error) {
+              console.error(
+                `[Price Model] CYCLE BRIDGE ERROR | ` +
+                `Bot=${callbackBotId} | ` +
+                `${error.message}`
+              );
+
+              return null;
+            }
+          },
         });
 
       // ------------------------------------------------------

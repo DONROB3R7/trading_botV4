@@ -143,6 +143,93 @@ export async function scanPriceModel(botId) {
 }
 
 
+// ============================================================
+// COMBINED ENTRY MODEL
+// ============================================================
+
+export async function getCombinedEntryModel(
+  botId
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(
+        botId
+      )}/combined-entry-model`
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+      "Combined Entry Model request failed"
+    );
+  }
+
+  return data;
+}
+
+export async function startCombinedEntryModel(
+  botId
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(
+        botId
+      )}/combined-entry-model/start`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+      "Failed to start Combined Entry Model"
+    );
+  }
+
+  return data;
+}
+
+export async function stopCombinedEntryModel(
+  botId
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/bots/${encodeURIComponent(
+        botId
+      )}/combined-entry-model/stop`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+      "Failed to stop Combined Entry Model"
+    );
+  }
+
+  return data;
+}
+
 
 // ============================================================
 // ENTRY MODEL

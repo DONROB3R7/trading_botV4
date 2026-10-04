@@ -1,33 +1,33 @@
 import {
-useCallback,
-useEffect,
-useMemo,
-useRef,
-useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 
 import {
-createChart,
-CandlestickSeries,
+  createChart,
+  CandlestickSeries,
 } from "lightweight-charts";
 
 import {
-getBots,
-getChart,
-getPriceModel,
-startPriceModel,
-stopPriceModel,
-scanPriceModel,
+  getBots,
+  getChart,
+  getPriceModel,
+  startPriceModel,
+  stopPriceModel,
+  scanPriceModel,
 } from "../api";
 
 import "./EntryModelPrice.css";
 
 const WINDOWS = [
-10,
-15,
-20,
-30,
-60,
+  10,
+  15,
+  20,
+  30,
+  60,
 ];
 
 // ==========================================================
@@ -35,230 +35,219 @@ const WINDOWS = [
 // ==========================================================
 
 function normalizeDirection(value) {
-const text =
-String(value || "")
-.trim()
-.toUpperCase();
+  const text =
+    String(value || "")
+      .trim()
+      .toUpperCase();
 
-if (
-text === "LONG" ||
-text === "SHORT"
-) {
-return text;
-}
+  if (
+    text === "LONG" ||
+    text === "SHORT"
+  ) {
+    return text;
+  }
 
-return "NEUTRAL";
+  return "NEUTRAL";
 }
 
 function formatNumber(
-value,
-decimals = 4
+  value,
+  decimals = 4
 ) {
-if (
-value === null ||
-value === undefined ||
-value === ""
-) {
-return "-";
-}
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "-";
+  }
 
-const number = Number(value);
+  const number = Number(value);
 
-if (!Number.isFinite(number)) {
-return String(value);
-}
+  if (!Number.isFinite(number)) {
+    return String(value);
+  }
 
-return number.toFixed(decimals);
+  return number.toFixed(decimals);
 }
 
 function formatPrice(value) {
-if (
-value === null ||
-value === undefined
-) {
-return "-";
-}
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "-";
+  }
 
-const number = Number(value);
+  const number = Number(value);
 
-if (!Number.isFinite(number)) {
-return String(value);
-}
+  if (!Number.isFinite(number)) {
+    return String(value);
+  }
 
-if (number >= 1000) {
-return number.toFixed(2);
-}
+  if (number >= 1000) {
+    return number.toFixed(2);
+  }
 
-if (number >= 1) {
-return number.toFixed(4);
-}
+  if (number >= 1) {
+    return number.toFixed(4);
+  }
 
-return number.toFixed(6);
+  return number.toFixed(6);
 }
 
 function formatTime(value) {
-if (!value) {
-return "-";
-}
+  if (!value) {
+    return "-";
+  }
 
-try {
-return new Date(
-value
-).toLocaleTimeString();
-} catch {
-return String(value);
-}
+  try {
+    return new Date(
+      value
+    ).toLocaleTimeString();
+  } catch {
+    return String(value);
+  }
 }
 
 function getWindowResult(
-scan,
-windowSize
+  scan,
+  windowSize
 ) {
-return (
-scan?.windows?.[
-windowSize
-] ||
-scan?.entries?.[
-windowSize
-] ||
-scan?.entries?.[
-String(windowSize)
-] ||
-scan?.windows?.[
-String(windowSize)
-] ||
-null
-);
+  return (
+    scan?.windows?.[
+      windowSize
+    ] ||
+    scan?.entries?.[
+      windowSize
+    ] ||
+    scan?.entries?.[
+      String(windowSize)
+    ] ||
+    scan?.windows?.[
+      String(windowSize)
+    ] ||
+    null
+  );
 }
 
 function getWindowDirection(
-scan,
-windowSize
+  scan,
+  windowSize
 ) {
-const result =
-getWindowResult(
-scan,
-windowSize
-);
+  const result =
+    getWindowResult(
+      scan,
+      windowSize
+    );
 
-// ========================================================
-// IMPORTANT:
-// Use the FINAL threshold-filtered direction first.
-//
-// Example:
-// rawDirection = SHORT
-// direction = NEUTRAL
-//
-// UI must display NEUTRAL.
-// ========================================================
-
-return normalizeDirection(
-result?.direction ||
-"NEUTRAL"
-);
+  return normalizeDirection(
+    result?.direction ||
+      "NEUTRAL"
+  );
 }
 
 function getWindowValue(
-scan,
-windowSize
+  scan,
+  windowSize
 ) {
-const result =
-getWindowResult(
-scan,
-windowSize
-);
+  const result =
+    getWindowResult(
+      scan,
+      windowSize
+    );
 
-return (
-result?.strength ??
-result?.winningStrength ??
-result?.value ??
-null
-);
+  return (
+    result?.strength ??
+    result?.winningStrength ??
+    result?.value ??
+    null
+  );
 }
 
 function getWindowMovement(
-scan,
-windowSize
+  scan,
+  windowSize
 ) {
-const result =
-getWindowResult(
-scan,
-windowSize
-);
+  const result =
+    getWindowResult(
+      scan,
+      windowSize
+    );
 
-return (
-result?.movement ||
-null
-);
+  return (
+    result?.movement ||
+    null
+  );
 }
 
 function getMovementBaseline(
-scan,
-windowSize
+  scan,
+  windowSize
 ) {
-return (
-scan?.movementBaseline
-?.windows?.[
-windowSize
-] ||
-scan?.movementBaseline
-?.windows?.[
-String(windowSize)
-] ||
-null
-);
+  return (
+    scan?.movementBaseline
+      ?.windows?.[
+        windowSize
+      ] ||
+    scan?.movementBaseline
+      ?.windows?.[
+        String(windowSize)
+      ] ||
+    null
+  );
 }
 
 function getDirectionClass(
-direction
+  direction
 ) {
-const normalized =
-normalizeDirection(
-direction
-);
+  const normalized =
+    normalizeDirection(
+      direction
+    );
 
-if (
-normalized === "LONG"
-) {
-return "long";
-}
+  if (
+    normalized === "LONG"
+  ) {
+    return "long";
+  }
 
-if (
-normalized === "SHORT"
-) {
-return "short";
-}
+  if (
+    normalized === "SHORT"
+  ) {
+    return "short";
+  }
 
-return "neutral";
+  return "neutral";
 }
 
 function formatMovement(
-value,
-decimals = 2
+  value,
+  decimals = 2
 ) {
-if (
-value === null ||
-value === undefined ||
-value === ""
-) {
-return "-";
-}
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "-";
+  }
 
-const number = Number(value);
+  const number = Number(value);
 
-if (!Number.isFinite(number)) {
-return "-";
-}
+  if (!Number.isFinite(number)) {
+    return "-";
+  }
 
-return (
-`${
+  return (
+    `${
       number >= 0
         ? "+"
         : ""
     }${number.toFixed(
       decimals
     )}%`
-);
+  );
 }
 
 // ==========================================================
@@ -266,196 +255,164 @@ return (
 // ==========================================================
 
 function WindowCard({
-windowSize,
-result,
-baseline,
+  windowSize,
+  result,
+  baseline,
 }) {
-// ========================================================
-// IMPORTANT:
-// Display final threshold-filtered direction.
-// Do NOT use rawDirection here.
-// ========================================================
+  const direction =
+    normalizeDirection(
+      result?.direction ||
+        "NEUTRAL"
+    );
 
-const direction =
-normalizeDirection(
-result?.direction ||
-"NEUTRAL"
-);
+  const strength =
+    result?.strength ??
+    result?.winningStrength ??
+    null;
 
-const strength =
-result?.strength ??
-result?.winningStrength ??
-null;
+  const movement =
+    result?.movement ||
+    {};
 
-const movement =
-result?.movement ||
-{};
+  return (
+    <div className="entry-model-card">
 
-return ( <div className="entry-model-card">
+      <div className="entry-model-card-title">
+        {windowSize} MIN
+      </div>
 
+      <div
+        className={
+          `entry-model-card-value ` +
+          getDirectionClass(
+            direction
+          )
+        }
+      >
+        {direction}
+      </div>
 
-  <div className="entry-model-card-title">
-    {windowSize} MIN
-  </div>
+      <div className="entry-model-card-row">
+        <span>
+          Strength
+        </span>
 
-  <div
-    className={
-      `entry-model-card-value ` +
-      getDirectionClass(
-        direction
-      )
-    }
-  >
-    {direction}
-  </div>
+        <strong>
+          {formatNumber(
+            strength,
+            2
+          )}
+          %
+        </strong>
+      </div>
 
-  {/* ================================================ */}
-  {/* DIRECTIONAL STRENGTH */}
-  {/* ================================================ */}
+      <div className="entry-model-card-row">
+        <span>
+          Up
+        </span>
 
-  <div className="entry-model-card-row">
-    <span>
-      Strength
-    </span>
+        <strong>
+          {formatNumber(
+            result?.upStrength,
+            2
+          )}
+          %
+        </strong>
+      </div>
 
-    <strong>
-      {formatNumber(
-        strength,
-        2
-      )}
-      %
-    </strong>
-  </div>
+      <div className="entry-model-card-row">
+        <span>
+          Down
+        </span>
 
-  <div className="entry-model-card-row">
-    <span>
-      Up
-    </span>
+        <strong>
+          {formatNumber(
+            result?.downStrength,
+            2
+          )}
+          %
+        </strong>
+      </div>
 
-    <strong>
-      {formatNumber(
-        result?.upStrength,
-        2
-      )}
-      %
-    </strong>
-  </div>
+      <div className="entry-model-card-row">
+        <span>
+          Actual Move
+        </span>
 
-  <div className="entry-model-card-row">
-    <span>
-      Down
-    </span>
+        <strong
+          className={
+            getDirectionClass(
+              movement?.direction
+            )
+          }
+        >
+          {formatMovement(
+            movement?.actualMove,
+            2
+          )}
+        </strong>
+      </div>
 
-    <strong>
-      {formatNumber(
-        result?.downStrength,
-        2
-      )}
-      %
-    </strong>
-  </div>
+      <div className="entry-model-card-row">
+        <span>
+          Average
+        </span>
 
-  {/* ================================================ */}
-  {/* ACTUAL PRICE MOVEMENT */}
-  {/* ================================================ */}
+        <strong>
+          {formatMovement(
+            movement?.normalMove,
+            2
+          )}
+        </strong>
+      </div>
 
-  <div className="entry-model-card-row">
-    <span>
-      Actual Move
-    </span>
+      <div className="entry-model-card-row">
+        <span>
+          High
+        </span>
 
-    <strong
-      className={
-        getDirectionClass(
-          movement?.direction
-        )
-      }
-    >
-      {formatMovement(
-        movement?.actualMove,
-        2
-      )}
-    </strong>
-  </div>
+        <strong>
+          {formatMovement(
+            baseline?.highMove,
+            2
+          )}
+        </strong>
+      </div>
 
-  {/* ================================================ */}
-  {/* NORMAL / AVERAGE */}
-  {/* ================================================ */}
+      <div className="entry-model-card-row">
+        <span>
+          Extreme
+        </span>
 
-  <div className="entry-model-card-row">
-    <span>
-      Average
-    </span>
+        <strong>
+          {formatMovement(
+            baseline?.extremeMove ??
+              baseline?.maximumMove,
+            2
+          )}
+        </strong>
+      </div>
 
-    <strong>
-      {formatMovement(
-        movement?.normalMove,
-        2
-      )}
-    </strong>
-  </div>
+      <div className="entry-model-card-row">
+        <span>
+          Vs Normal
+        </span>
 
-  {/* ================================================ */}
-  {/* HIGH */}
-  {/* ================================================ */}
+        <strong>
+          {movement?.moveVsNormal !==
+            null &&
+          movement?.moveVsNormal !==
+            undefined
+            ? `${formatNumber(
+                movement.moveVsNormal,
+                1
+              )}%`
+            : "-"}
+        </strong>
+      </div>
 
-  <div className="entry-model-card-row">
-    <span>
-      High
-    </span>
-
-    <strong>
-      {formatMovement(
-        baseline?.highMove,
-        2
-      )}
-    </strong>
-  </div>
-
-  {/* ================================================ */}
-  {/* EXTREME */}
-  {/* ================================================ */}
-
-  <div className="entry-model-card-row">
-    <span>
-      Extreme
-    </span>
-
-    <strong>
-      {formatMovement(
-        baseline?.extremeMove ??
-          baseline?.maximumMove,
-        2
-      )}
-    </strong>
-  </div>
-
-  {/* ================================================ */}
-  {/* ACTUAL VS NORMAL */}
-  {/* ================================================ */}
-
-  <div className="entry-model-card-row">
-    <span>
-      Vs Normal
-    </span>
-
-    <strong>
-      {movement?.moveVsNormal !==
-        null &&
-      movement?.moveVsNormal !==
-        undefined
-        ? `${formatNumber(
-            movement.moveVsNormal,
-            1
-          )}%`
-        : "-"}
-    </strong>
-  </div>
-
-</div>
-
-
-);
+    </div>
+  );
 }
 
 // ==========================================================
@@ -463,1934 +420,1181 @@ return ( <div className="entry-model-card">
 // ==========================================================
 
 export default function EntryModelPrice() {
-const [bots, setBots] =
-useState([]);
+  const [bots, setBots] =
+    useState([]);
 
-const [
-selectedBotId,
-setSelectedBotId,
-] = useState("");
+  const [
+    selectedBotId,
+    setSelectedBotId,
+  ] = useState("");
 
-const [
-priceModel,
-setPriceModel,
-] = useState(null);
+  const [
+    priceModel,
+    setPriceModel,
+  ] = useState(null);
 
-const [
-chart,
-setChart,
-] = useState(null);
+  const [
+    chart,
+    setChart,
+  ] = useState(null);
 
-const [
-loading,
-setLoading,
-] = useState(false);
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
 
-const [
-error,
-setError,
-] = useState("");
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-const [
-message,
-setMessage,
-] = useState("");
+  const [
+    message,
+    setMessage,
+  ] = useState("");
 
-const priceScanTimerRef =
-useRef(null);
+  const scanRunningRef =
+    useRef(false);
 
-const scanRunningRef =
-useRef(false);
+  // ========================================================
+  // REAL CHART REFS
+  // ========================================================
 
-// ========================================================
-// REAL CHART REFS
-// ========================================================
+  const chartContainerRef =
+    useRef(null);
 
-const chartContainerRef =
-useRef(null);
+  const chartInstanceRef =
+    useRef(null);
 
-const chartInstanceRef =
-useRef(null);
+  const candleSeriesRef =
+    useRef(null);
 
-const candleSeriesRef =
-useRef(null);
-
-const selectedBot =
-useMemo(
-() =>
-bots.find(
-(bot) =>
-bot.id ===
-selectedBotId
-),
-[
-bots,
-selectedBotId,
-]
-);
-
-const selectedSymbol =
-selectedBot?.symbol ||
-priceModel?.symbol ||
-"";
-
-// ========================================================
-// LOAD BOTS
-// ========================================================
-
-const loadBots =
-useCallback(
-async () => {
-try {
-const data =
-await getBots();
-
-
-      const list =
-        Array.isArray(data)
-          ? data
-          : data?.bots || [];
-
-      setBots(list);
-
-      if (
-        !selectedBotId &&
-        list.length > 0
-      ) {
-        setSelectedBotId(
-          list[0].id
-        );
-      }
-    } catch (err) {
-      console.error(
-        "[Entry Model Price] " +
-          "Bot load error:",
-        err
-      );
-
-      setError(
-        err.message ||
-          "Failed to load bots"
-      );
-    }
-  },
-  [selectedBotId]
-);
-
-
-// ========================================================
-// LOAD PRICE MODEL
-// ========================================================
-
-const loadPriceModel =
-useCallback(
-async () => {
-if (!selectedBotId) {
-return;
-}
-
-
-    try {
-      const data =
-        await getPriceModel(
-          selectedBotId
-        );
-
-      if (
-        data?.priceModel
-      ) {
-        setPriceModel(
-          data.priceModel
-        );
-      }
-    } catch (err) {
-      console.error(
-        "[Entry Model Price] " +
-          "Price Model load error:",
-        err
-      );
-
-      setError(
-        err.message ||
-          "Failed to load Price Model"
-      );
-    }
-  },
-  [selectedBotId]
-);
-
-
-// ========================================================
-// LOAD CHART DATA
-// ========================================================
-
-const loadChart =
-useCallback(
-async () => {
-if (!selectedSymbol) {
-return;
-}
-
-
-    try {
-      const data =
-        await getChart(
-          selectedSymbol,
-          "1m"
-        );
-
-      setChart(
-        data?.chart ||
-          data ||
-          null
-      );
-    } catch (err) {
-      console.error(
-        "[Entry Model Price] " +
-          "Chart load error:",
-        err
-      );
-
-      setChart(null);
-    }
-  },
-  [selectedSymbol]
-);
-
-
-// ========================================================
-// CREATE / UPDATE REAL LIGHTWEIGHT CHART
-// ========================================================
-
-useEffect(() => {
-const container =
-chartContainerRef.current;
-
-
-if (!container) {
-  return;
-}
-
-if (
-  !chartInstanceRef.current
-) {
-  const chartInstance =
-    createChart(
-      container,
-      {
-        width:
-          container.clientWidth ||
-          800,
-
-        height:
-          container.clientHeight ||
-          430,
-
-        layout: {
-          background: {
-            color:
-              "#0d1117",
-          },
-
-          textColor:
-            "#9ca3af",
-        },
-
-        grid: {
-          vertLines: {
-            color:
-              "#1c222c",
-          },
-
-          horzLines: {
-            color:
-              "#1c222c",
-          },
-        },
-
-        crosshair: {
-          mode: 1,
-        },
-
-        rightPriceScale: {
-          borderColor:
-            "#303642",
-        },
-
-        timeScale: {
-          borderColor:
-            "#303642",
-
-          timeVisible:
-            true,
-
-          secondsVisible:
-            false,
-
-          rightOffset: 5,
-
-          barSpacing: 7,
-
-          minBarSpacing: 2,
-        },
-
-        handleScroll: {
-          mouseWheel:
-            true,
-
-          pressedMouseMove:
-            true,
-
-          horzTouchDrag:
-            true,
-
-          vertTouchDrag:
-            true,
-        },
-
-        handleScale: {
-          axisPressedMouseMove:
-            true,
-
-          mouseWheel:
-            true,
-
-          pinch:
-            true,
-        },
-      }
+  const selectedBot =
+    useMemo(
+      () =>
+        bots.find(
+          (bot) =>
+            bot.id ===
+            selectedBotId
+        ),
+      [
+        bots,
+        selectedBotId,
+      ]
     );
 
-  const candleSeries =
-    chartInstance.addSeries(
-      CandlestickSeries,
-      {
-        upColor:
-          "#26a69a",
+  const selectedSymbol =
+    selectedBot?.symbol ||
+    priceModel?.symbol ||
+    "";
 
-        downColor:
-          "#ef5350",
+  // ========================================================
+  // LOAD BOTS
+  // ========================================================
 
-        borderUpColor:
-          "#26a69a",
+  const loadBots =
+    useCallback(
+      async () => {
+        try {
+          const data =
+            await getBots();
 
-        borderDownColor:
-          "#ef5350",
+          const list =
+            Array.isArray(data)
+              ? data
+              : data?.bots || [];
 
-        wickUpColor:
-          "#26a69a",
+          setBots(list);
 
-        wickDownColor:
-          "#ef5350",
+          if (
+            !selectedBotId &&
+            list.length > 0
+          ) {
+            setSelectedBotId(
+              list[0].id
+            );
+          }
+        } catch (err) {
+          console.error(
+            "[Entry Model Price] " +
+              "Bot load error:",
+            err
+          );
 
-        priceLineVisible:
-          true,
-
-        lastValueVisible:
-          true,
-      }
+          setError(
+            err.message ||
+              "Failed to load bots"
+          );
+        }
+      },
+      [selectedBotId]
     );
 
-  chartInstanceRef.current =
-    chartInstance;
+  // ========================================================
+  // LOAD PRICE MODEL
+  // ========================================================
 
-  candleSeriesRef.current =
-    candleSeries;
-
-  const resizeObserver =
-    new ResizeObserver(
-      () => {
-        if (
-          !chartInstanceRef.current
-        ) {
+  const loadPriceModel =
+    useCallback(
+      async () => {
+        if (!selectedBotId) {
           return;
         }
 
-        chartInstanceRef.current.resize(
-          container.clientWidth,
-          container.clientHeight
-        );
-      }
+        try {
+          const data =
+            await getPriceModel(
+              selectedBotId
+            );
+
+          if (
+            data?.model
+          ) {
+            setPriceModel(
+              data.model
+            );
+          }
+        } catch (err) {
+          console.error(
+            "[Entry Model Price] " +
+              "Price Model load error:",
+            err
+          );
+
+          setError(
+            err.message ||
+              "Failed to load Price Model"
+          );
+        }
+      },
+      [selectedBotId]
     );
 
-  resizeObserver.observe(
-    container
-  );
+  // ========================================================
+  // LOAD CHART DATA
+  // ========================================================
 
-  return () => {
-    resizeObserver.disconnect();
-
-    chartInstance.remove();
-
-    chartInstanceRef.current =
-      null;
-
-    candleSeriesRef.current =
-      null;
-  };
-}
-
-
-}, []);
-
-// ========================================================
-// PUT CANDLES INTO CHART
-// ========================================================
-
-useEffect(() => {
-if (
-!chart ||
-!candleSeriesRef.current ||
-!chartInstanceRef.current
-) {
-return;
-}
-
-
-const rawData =
-  Array.isArray(chart)
-    ? chart
-    : chart?.data;
-
-if (
-  !Array.isArray(rawData) ||
-  rawData.length === 0
-) {
-  return;
-}
-
-const candles =
-  rawData
-    .map(
-      (candle) => {
-        const time =
-          Number(
-            candle?.time
-          );
-
-        const open =
-          Number(
-            candle?.open
-          );
-
-        const high =
-          Number(
-            candle?.high
-          );
-
-        const low =
-          Number(
-            candle?.low
-          );
-
-        const close =
-          Number(
-            candle?.close
-          );
-
-        if (
-          !Number.isFinite(
-            time
-          ) ||
-          !Number.isFinite(
-            open
-          ) ||
-          !Number.isFinite(
-            high
-          ) ||
-          !Number.isFinite(
-            low
-          ) ||
-          !Number.isFinite(
-            close
-          )
-        ) {
-          return null;
+  const loadChart =
+    useCallback(
+      async () => {
+        if (!selectedSymbol) {
+          return;
         }
 
-        return {
-          time,
-          open,
-          high,
-          low,
-          close,
-        };
-      }
-    )
-    .filter(Boolean)
-    .sort(
-      (a, b) =>
-        a.time -
-        b.time
+        try {
+          const data =
+            await getChart(
+              selectedSymbol,
+              "1m"
+            );
+
+          setChart(
+            data?.chart ||
+              data ||
+              null
+          );
+        } catch (err) {
+          console.error(
+            "[Entry Model Price] " +
+              "Chart load error:",
+            err
+          );
+
+          setChart(null);
+        }
+      },
+      [selectedSymbol]
     );
 
-if (
-  candles.length === 0
-) {
-  return;
-}
+  // ========================================================
+  // CREATE / UPDATE REAL LIGHTWEIGHT CHART
+  // ========================================================
 
-const uniqueCandles = [];
+  useEffect(() => {
+    const container =
+      chartContainerRef.current;
 
-let lastTime = null;
-
-for (
-  const candle of candles
-) {
-  if (
-    candle.time ===
-    lastTime
-  ) {
-    uniqueCandles[
-      uniqueCandles.length - 1
-    ] = candle;
-
-    continue;
-  }
-
-  uniqueCandles.push(
-    candle
-  );
-
-  lastTime =
-    candle.time;
-}
-
-candleSeriesRef.current.setData(
-  uniqueCandles
-);
-
-chartInstanceRef.current
-  .timeScale()
-  .fitContent();
-
-
-}, [chart]);
-
-// ========================================================
-// RUN PRICE SCAN
-// ========================================================
-
-const runPriceScan =
-useCallback(
-async () => {
-if (!selectedBotId) {
-return;
-}
-
+    if (!container) {
+      return;
+    }
 
     if (
-      scanRunningRef.current
+      !chartInstanceRef.current
+    ) {
+      const chartInstance =
+        createChart(
+          container,
+          {
+            width:
+              container.clientWidth ||
+              800,
+
+            height:
+              container.clientHeight ||
+              430,
+
+            layout: {
+              background: {
+                color:
+                  "#0d1117",
+              },
+
+              textColor:
+                "#9ca3af",
+            },
+
+            grid: {
+              vertLines: {
+                color:
+                  "#1c222c",
+              },
+
+              horzLines: {
+                color:
+                  "#1c222c",
+              },
+            },
+
+            crosshair: {
+              mode: 1,
+            },
+
+            rightPriceScale: {
+              borderColor:
+                "#303642",
+            },
+
+            timeScale: {
+              borderColor:
+                "#303642",
+
+              timeVisible:
+                true,
+
+              secondsVisible:
+                false,
+
+              rightOffset: 5,
+
+              barSpacing: 7,
+
+              minBarSpacing: 2,
+            },
+
+            handleScroll: {
+              mouseWheel:
+                true,
+
+              pressedMouseMove:
+                true,
+
+              horzTouchDrag:
+                true,
+
+              vertTouchDrag:
+                true,
+            },
+
+            handleScale: {
+              axisPressedMouseMove:
+                true,
+
+              mouseWheel:
+                true,
+
+              pinch:
+                true,
+            },
+          }
+        );
+
+      const candleSeries =
+        chartInstance.addSeries(
+          CandlestickSeries,
+          {
+            upColor:
+              "#26a69a",
+
+            downColor:
+              "#ef5350",
+
+            borderUpColor:
+              "#26a69a",
+
+            borderDownColor:
+              "#ef5350",
+
+            wickUpColor:
+              "#26a69a",
+
+            wickDownColor:
+              "#ef5350",
+
+            priceLineVisible:
+              true,
+
+            lastValueVisible:
+              true,
+          }
+        );
+
+      chartInstanceRef.current =
+        chartInstance;
+
+      candleSeriesRef.current =
+        candleSeries;
+
+      const resizeObserver =
+        new ResizeObserver(
+          () => {
+            if (
+              !chartInstanceRef.current
+            ) {
+              return;
+            }
+
+            chartInstanceRef.current.resize(
+              container.clientWidth,
+              container.clientHeight
+            );
+          }
+        );
+
+      resizeObserver.observe(
+        container
+      );
+
+      return () => {
+        resizeObserver.disconnect();
+
+        chartInstance.remove();
+
+        chartInstanceRef.current =
+          null;
+
+        candleSeriesRef.current =
+          null;
+      };
+    }
+  }, []);
+
+  // ========================================================
+  // PUT CANDLES INTO CHART
+  // ========================================================
+
+  useEffect(() => {
+    if (
+      !chart ||
+      !candleSeriesRef.current ||
+      !chartInstanceRef.current
     ) {
       return;
     }
 
-    scanRunningRef.current =
-      true;
+    const rawData =
+      Array.isArray(chart)
+        ? chart
+        : chart?.data;
 
-    try {
-      const data =
-        await scanPriceModel(
-          selectedBotId
-        );
-
-      if (
-        data?.priceModel
-      ) {
-        setPriceModel(
-          data.priceModel
-        );
-      }
-
-      setMessage(
-        "Price scan completed"
-      );
-
-      setError("");
-    } catch (err) {
-      console.error(
-        "[Entry Model Price] " +
-          "Scan error:",
-        err
-      );
-
-      setError(
-        err.message ||
-          "Price Model scan failed"
-      );
-    } finally {
-      scanRunningRef.current =
-        false;
+    if (
+      !Array.isArray(rawData) ||
+      rawData.length === 0
+    ) {
+      return;
     }
-  },
-  [selectedBotId]
-);
 
+    const candles =
+      rawData
+        .map(
+          (candle) => {
+            const time =
+              Number(
+                candle?.time
+              );
 
-// ========================================================
-// START
-// ========================================================
+            const open =
+              Number(
+                candle?.open
+              );
 
-const handleStart =
-useCallback(
-async () => {
-if (!selectedBotId) {
-return;
-}
+            const high =
+              Number(
+                candle?.high
+              );
 
+            const low =
+              Number(
+                candle?.low
+              );
 
-    setLoading(true);
-    setError("");
-    setMessage("");
+            const close =
+              Number(
+                candle?.close
+              );
 
-    try {
-      const data =
-        await startPriceModel(
-          selectedBotId
+            if (
+              !Number.isFinite(
+                time
+              ) ||
+              !Number.isFinite(
+                open
+              ) ||
+              !Number.isFinite(
+                high
+              ) ||
+              !Number.isFinite(
+                low
+              ) ||
+              !Number.isFinite(
+                close
+              )
+            ) {
+              return null;
+            }
+
+            return {
+              time,
+              open,
+              high,
+              low,
+              close,
+            };
+          }
+        )
+        .filter(Boolean)
+        .sort(
+          (a, b) =>
+            a.time -
+            b.time
         );
 
-      if (
-        data?.priceModel
-      ) {
-        setPriceModel(
-          data.priceModel
-        );
-      }
-
-      setMessage(
-        "Price Model started"
-      );
-
-      await runPriceScan();
-
-      if (
-        priceScanTimerRef.current
-      ) {
-        clearInterval(
-          priceScanTimerRef.current
-        );
-      }
-
-      priceScanTimerRef.current =
-        setInterval(
-          () => {
-            runPriceScan();
-          },
-          60 * 1000
-        );
-    } catch (err) {
-      console.error(
-        "[Entry Model Price] " +
-          "Start error:",
-        err
-      );
-
-      setError(
-        err.message ||
-          "Failed to start Price Model"
-      );
-    } finally {
-      setLoading(false);
+    if (
+      candles.length === 0
+    ) {
+      return;
     }
-  },
-  [
-    selectedBotId,
-    runPriceScan,
-  ]
-);
 
+    const uniqueCandles = [];
 
-// ========================================================
-// STOP
-// ========================================================
+    let lastTime = null;
 
-const handleStop =
-useCallback(
-async () => {
-if (!selectedBotId) {
-return;
-}
-
-
-    setLoading(true);
-    setError("");
-    setMessage("");
-
-    try {
+    for (
+      const candle of candles
+    ) {
       if (
-        priceScanTimerRef.current
+        candle.time ===
+        lastTime
       ) {
-        clearInterval(
-          priceScanTimerRef.current
-        );
+        uniqueCandles[
+          uniqueCandles.length - 1
+        ] = candle;
 
-        priceScanTimerRef.current =
-          null;
+        continue;
       }
 
-      const data =
-        await stopPriceModel(
-          selectedBotId
-        );
-
-      if (
-        data?.priceModel
-      ) {
-        setPriceModel(
-          data.priceModel
-        );
-      } else {
-        await loadPriceModel();
-      }
-
-      setMessage(
-        "Price Model stopped"
-      );
-    } catch (err) {
-      console.error(
-        "[Entry Model Price] " +
-          "Stop error:",
-        err
+      uniqueCandles.push(
+        candle
       );
 
-      setError(
-        err.message ||
-          "Failed to stop Price Model"
-      );
-    } finally {
-      setLoading(false);
+      lastTime =
+        candle.time;
     }
-  },
-  [
-    selectedBotId,
-    loadPriceModel,
-  ]
-);
 
+    candleSeriesRef.current.setData(
+      uniqueCandles
+    );
 
-// ========================================================
-// MANUAL SCAN
-// ========================================================
+    chartInstanceRef.current
+      .timeScale()
+      .fitContent();
+  }, [chart]);
 
-const handleManualScan =
-useCallback(
-async () => {
-setLoading(true);
+  // ========================================================
+  // RUN PRICE SCAN
+  // ========================================================
 
+  const runPriceScan =
+    useCallback(
+      async () => {
+        if (!selectedBotId) {
+          return;
+        }
 
-    try {
-      await runPriceScan();
-    } finally {
-      setLoading(false);
-    }
-  },
-  [runPriceScan]
-);
+        if (
+          scanRunningRef.current
+        ) {
+          return;
+        }
 
+        scanRunningRef.current =
+          true;
 
-// ========================================================
-// INITIAL LOAD
-// ========================================================
+        try {
+          const data =
+            await scanPriceModel(
+              selectedBotId
+            );
 
-useEffect(() => {
-loadBots();
-}, [loadBots]);
+          if (
+            data?.model
+          ) {
+            setPriceModel(
+              data.model
+            );
+          }
 
-// ========================================================
-// LOAD PRICE MODEL
-// ========================================================
-
-useEffect(() => {
-if (!selectedBotId) {
-return;
-}
-
-
-loadPriceModel();
-
-
-}, [
-selectedBotId,
-loadPriceModel,
-]);
-
-// ========================================================
-// LOAD CHART
-// ========================================================
-
-useEffect(() => {
-if (!selectedSymbol) {
-return;
-}
-
-
-loadChart();
-
-
-}, [
-selectedSymbol,
-loadChart,
-]);
-
-// ========================================================
-// PRICE MODEL REFRESH
-// ========================================================
-
-useEffect(() => {
-if (!selectedBotId) {
-return;
-}
-
-
-const timer =
-  setInterval(
-    () => {
-      loadPriceModel();
-    },
-    5000
-  );
-
-return () => {
-  clearInterval(timer);
-};
-
-
-}, [
-selectedBotId,
-loadPriceModel,
-]);
-
-// ========================================================
-// CLEANUP SCAN TIMER
-// ========================================================
-
-useEffect(() => {
-return () => {
-if (
-priceScanTimerRef.current
-) {
-clearInterval(
-priceScanTimerRef.current
-);
-
-
-    priceScanTimerRef.current =
-      null;
-  }
-};
-
-
-}, []);
-
-// ========================================================
-// DATA
-// ========================================================
-
-const currentScans =
-priceModel?.currentScans ||
-[];
-
-const previousCycles =
-priceModel?.previousCycles ||
-[];
-
-const latestScan =
-currentScans.length > 0
-? currentScans[
-currentScans.length - 1
-]
-: null;
-
-const confirmation =
-latestScan?.confirmation ||
-{};
-
-const shortVotes =
-confirmation.rawShortVotes ??
-0;
-
-const longVotes =
-confirmation.rawLongVotes ??
-0;
-
-const movementBaseline =
-latestScan?.movementBaseline ||
-null;
-
-// ========================================================
-// RENDER
-// ========================================================
-
-return ( <div className="entry-model-page-price">
-
-
-  {/* ================================================== */}
-  {/* HEADER */}
-  {/* ================================================== */}
-
-  <div className="entry-model-header">
-
-    <div>
-      <h1>
-        Entry Model Price
-      </h1>
-
-      <div className="entry-model-subtitle">
-        Price-only pullback model
-      </div>
-    </div>
-
-    <div className="entry-model-controls">
-
-      <select
-        value={selectedBotId}
-        onChange={(event) => {
-          setSelectedBotId(
-            event.target.value
+          setMessage(
+            "Price scan completed"
           );
 
-          setChart(null);
-          setPriceModel(null);
-        }}
-      >
-        <option value="">
-          Select Bot
-        </option>
+          setError("");
+        } catch (err) {
+          console.error(
+            "[Entry Model Price] " +
+              "Scan error:",
+            err
+          );
 
-        {bots.map(
-          (bot) => (
-            <option
-              key={bot.id}
-              value={bot.id}
-            >
-              {bot.name ||
-                bot.symbol ||
-                bot.id}
-            </option>
-          )
-        )}
-      </select>
-
-      <button
-        type="button"
-        onClick={handleStart}
-        disabled={
-          !selectedBotId ||
-          loading
+          setError(
+            err.message ||
+              "Price Model scan failed"
+          );
+        } finally {
+          scanRunningRef.current =
+            false;
         }
-      >
-        START
-      </button>
+      },
+      [selectedBotId]
+    );
 
-      <button
-        type="button"
-        onClick={
-          handleManualScan
+  // ========================================================
+  // START
+  // ========================================================
+
+  const handleStart =
+    useCallback(
+      async () => {
+        if (!selectedBotId) {
+          return;
         }
-        disabled={
-          !selectedBotId ||
-          loading
-        }
-      >
-        SCAN
-      </button>
 
-      <button
-        type="button"
-        onClick={handleStop}
-        disabled={
-          !selectedBotId ||
-          loading
-        }
-      >
-        STOP
-      </button>
+        setLoading(true);
+        setError("");
+        setMessage("");
 
-    </div>
-  </div>
+        try {
+          const data =
+            await startPriceModel(
+              selectedBotId
+            );
 
-  {/* ================================================== */}
-  {/* MESSAGE */}
-  {/* ================================================== */}
-
-  {message && (
-    <div className="entry-model-message">
-      {message}
-    </div>
-  )}
-
-  {error && (
-    <div className="entry-model-error">
-      {error}
-    </div>
-  )}
-
-  {/* ================================================== */}
-  {/* BOT INFO */}
-  {/* ================================================== */}
-
-  {selectedBot && (
-    <div className="entry-model-info">
-
-      <div>
-        <span>
-          Bot
-        </span>
-
-        <strong>
-          {selectedBot.name ||
-            selectedBot.id}
-        </strong>
-      </div>
-
-      <div>
-        <span>
-          Symbol
-        </span>
-
-        <strong>
-          {selectedBot.symbol ||
-            priceModel?.symbol ||
-            "-"}
-        </strong>
-      </div>
-
-      <div>
-        <span>
-          Direction
-        </span>
-
-        <strong
-          className={
-            getDirectionClass(
-              selectedBot.direction
-            )
+          if (
+            data?.model
+          ) {
+            setPriceModel(
+              data.model
+            );
           }
-        >
-          {normalizeDirection(
-            selectedBot.direction
-          )}
-        </strong>
-      </div>
 
-      <div>
-        <span>
-          Price Model
-        </span>
+          setMessage(
+            "Price Model started"
+          );
+        } catch (err) {
+          console.error(
+            "[Entry Model Price] " +
+              "Start error:",
+            err
+          );
 
-        <strong
-          className={
-            priceModel?.running
-              ? "long"
-              : "neutral"
+          setError(
+            err.message ||
+              "Failed to start Price Model"
+          );
+        } finally {
+          setLoading(false);
+        }
+      },
+      [selectedBotId]
+    );
+
+  // ========================================================
+  // STOP
+  // ========================================================
+
+  const handleStop =
+    useCallback(
+      async () => {
+        if (!selectedBotId) {
+          return;
+        }
+
+        setLoading(true);
+        setError("");
+        setMessage("");
+
+        try {
+          const data =
+            await stopPriceModel(
+              selectedBotId
+            );
+
+          if (
+            data?.model
+          ) {
+            setPriceModel(
+              data.model
+            );
+          } else {
+            await loadPriceModel();
           }
-        >
-          {priceModel?.running
-            ? "RUNNING"
-            : "STOPPED"}
-        </strong>
-      </div>
 
-      <div>
-        <span>
-          Current Price
-        </span>
+          setMessage(
+            "Price Model stopped"
+          );
+        } catch (err) {
+          console.error(
+            "[Entry Model Price] " +
+              "Stop error:",
+            err
+          );
 
-        <strong>
-          {formatPrice(
-            priceModel?.currentPrice
-          )}
-        </strong>
-      </div>
+          setError(
+            err.message ||
+              "Failed to stop Price Model"
+          );
+        } finally {
+          setLoading(false);
+        }
+      },
+      [
+        selectedBotId,
+        loadPriceModel,
+      ]
+    );
 
-      <div>
-        <span>
-          Trend Required
-        </span>
+  // ========================================================
+  // MANUAL SCAN
+  // ========================================================
 
-        <strong>
-          {priceModel?.config
-            ?.trendRequired ??
-            53}
-          %
-        </strong>
-      </div>
+  const handleManualScan =
+    useCallback(
+      async () => {
+        setLoading(true);
 
-    </div>
-  )}
+        try {
+          await runPriceScan();
+        } finally {
+          setLoading(false);
+        }
+      },
+      [runPriceScan]
+    );
 
-  {/* ================================================== */}
-  {/* REAL CANDLE CHART */}
-  {/* ================================================== */}
+  // ========================================================
+  // INITIAL LOAD
+  // ========================================================
 
-  <div className="entry-model-section">
+  useEffect(() => {
+    loadBots();
+  }, [loadBots]);
 
-    <div className="entry-model-section-header">
+  // ========================================================
+  // LOAD PRICE MODEL
+  // ========================================================
 
-      <h2>
-        Chart
-      </h2>
+  useEffect(() => {
+    if (!selectedBotId) {
+      return;
+    }
 
-      <div>
-        {chart?.symbol ||
-          selectedSymbol ||
-          "-"}
-      </div>
+    loadPriceModel();
+  }, [
+    selectedBotId,
+    loadPriceModel,
+  ]);
 
-    </div>
+  // ========================================================
+  // LOAD CHART
+  // ========================================================
 
-    <div
-      ref={chartContainerRef}
-      className="entry-model-chart"
-    />
+  useEffect(() => {
+    if (!selectedSymbol) {
+      return;
+    }
 
-    {!chart && (
-      <div className="entry-model-empty">
-        Chart data unavailable.
-      </div>
-    )}
+    loadChart();
+  }, [
+    selectedSymbol,
+    loadChart,
+  ]);
 
-  </div>
+  // ========================================================
+  // PRICE MODEL REFRESH
+  // ========================================================
 
-  {/* ================================================== */}
-  {/* MOVEMENT BASELINE */}
-  {/* ================================================== */}
+  useEffect(() => {
+    if (!selectedBotId) {
+      return;
+    }
 
-  <div className="entry-model-section">
+    const timer =
+      setInterval(
+        () => {
+          loadPriceModel();
+        },
+        5000
+      );
 
-    <div className="entry-model-section-header">
+    return () => {
+      clearInterval(timer);
+    };
+  }, [
+    selectedBotId,
+    loadPriceModel,
+  ]);
 
-      <h2>
-        Movement Baseline
-      </h2>
+  // ========================================================
+  // DATA
+  // ========================================================
 
-      <div>
-        Historical NET movement
-      </div>
+  const currentScans =
+    priceModel?.currentScans ||
+    [];
 
-    </div>
+  const previousCycles =
+    priceModel?.previousCycles ||
+    [];
 
-    <div className="entry-model-info">
+  const latestScan =
+    currentScans.length > 0
+      ? currentScans[
+          currentScans.length - 1
+        ]
+      : null;
 
-      <div>
-        <span>
-          Candles Used
-        </span>
+  const confirmation =
+    latestScan?.confirmation ||
+    {};
 
-        <strong>
-          {movementBaseline
-            ?.candlesUsed ??
-            "-"}
-        </strong>
-      </div>
+  const shortVotes =
+    confirmation.rawShortVotes ??
+    0;
 
-      <div>
-        <span>
-          Baseline
-        </span>
+  const longVotes =
+    confirmation.rawLongVotes ??
+    0;
 
-        <strong
-          className={
-            movementBaseline
-              ?.windows
-              ? "long"
-              : "neutral"
-          }
-        >
-          {movementBaseline
-            ?.windows
-            ? "READY"
-            : "WAITING"}
-        </strong>
-      </div>
+  const movementBaseline =
+    latestScan?.movementBaseline ||
+    null;
 
-    </div>
+  // ========================================================
+  // RENDER
+  // ========================================================
 
-    {/* ================================================ */}
-    {/* HISTORICAL MOVEMENT TABLE */}
-    {/* ================================================ */}
+  return (
+    <div className="entry-model-page-price">
 
-    <div className="entry-model-table-wrapper">
+      {/* ================================================== */}
+      {/* HEADER */}
+      {/* ================================================== */}
 
-      <table className="entry-model-table">
+      <div className="entry-model-header">
 
-        <thead>
-          <tr>
+        <div>
+          <h1>
+            Entry Model Price
+          </h1>
 
-            <th>
-              Window
-            </th>
+          <div className="entry-model-subtitle">
+            Price-only pullback model
+          </div>
+        </div>
 
-            <th>
-              Samples
-            </th>
+        <div className="entry-model-controls">
 
-            <th>
-              Average
-            </th>
-
-            <th>
-              High
-            </th>
-
-            <th>
-              Extreme
-            </th>
-
-            <th>
-              Median
-            </th>
-
-            <th>
-              Range
-            </th>
-
-          </tr>
-        </thead>
-
-        <tbody>
-
-          {WINDOWS.map(
-            (windowSize) => {
-
-              const baseline =
-                getMovementBaseline(
-                  latestScan,
-                  windowSize
-                );
-
-              return (
-                <tr
-                  key={
-                    windowSize
-                  }
-                >
-
-                  <td>
-                    <strong>
-                      {windowSize}m
-                    </strong>
-                  </td>
-
-                  <td>
-                    {baseline
-                      ?.samples ??
-                      "-"}
-                  </td>
-
-                  <td>
-                    <strong>
-                      {formatMovement(
-                        baseline
-                          ?.averageMove,
-                        2
-                      )}
-                    </strong>
-                  </td>
-
-                  <td>
-                    <strong>
-                      {formatMovement(
-                        baseline
-                          ?.highMove,
-                        2
-                      )}
-                    </strong>
-                  </td>
-
-                  <td>
-                    <strong>
-                      {formatMovement(
-                        baseline
-                          ?.extremeMove ??
-                          baseline
-                            ?.maximumMove,
-                        2
-                      )}
-                    </strong>
-                  </td>
-
-                  <td>
-                    {formatMovement(
-                      baseline
-                        ?.medianMove,
-                      2
-                    )}
-                  </td>
-
-                  <td>
-                    {baseline
-                      ? `${formatMovement(
-                          baseline.minimumMove,
-                          2
-                        )} → ${formatMovement(
-                          baseline.maximumMove,
-                          2
-                        )}`
-                      : "-"}
-                  </td>
-
-                </tr>
+          <select
+            value={selectedBotId}
+            onChange={(event) => {
+              setSelectedBotId(
+                event.target.value
               );
+
+              setChart(null);
+              setPriceModel(null);
+            }}
+          >
+            <option value="">
+              Select Bot
+            </option>
+
+            {bots.map(
+              (bot) => (
+                <option
+                  key={bot.id}
+                  value={bot.id}
+                >
+                  {bot.name ||
+                    bot.symbol ||
+                    bot.id}
+                </option>
+              )
+            )}
+          </select>
+
+          <button
+            type="button"
+            onClick={handleStart}
+            disabled={
+              !selectedBotId ||
+              loading
             }
-          )}
+          >
+            START
+          </button>
 
-        </tbody>
+          <button
+            type="button"
+            onClick={
+              handleManualScan
+            }
+            disabled={
+              !selectedBotId ||
+              loading
+            }
+          >
+            SCAN
+          </button>
 
-      </table>
+          <button
+            type="button"
+            onClick={handleStop}
+            disabled={
+              !selectedBotId ||
+              loading
+            }
+          >
+            STOP
+          </button>
 
-    </div>
-
-  </div>
-
-  {/* ================================================== */}
-  {/* PULLBACK WINDOWS */}
-  {/* ================================================== */}
-
-  <div className="entry-model-section">
-
-    <div className="entry-model-section-header">
-
-      <h2>
-        Pullback Windows
-      </h2>
-
-      <div>
-        Cycle{" "}
-        {priceModel?.cycleNumber ?? 0}
-        {" "}
-        | Scans{" "}
-        {priceModel?.scanCount ?? 0}
-        /
-        {priceModel?.config
-          ?.cycleLength ?? 10}
+        </div>
       </div>
 
-    </div>
+      {/* ================================================== */}
+      {/* MESSAGE */}
+      {/* ================================================== */}
 
-    <div className="entry-model-grid">
-
-      {WINDOWS.map(
-        (windowSize) => (
-          <WindowCard
-            key={windowSize}
-            windowSize={
-              windowSize
-            }
-            result={
-              getWindowResult(
-                latestScan,
-                windowSize
-              )
-            }
-            baseline={
-              getMovementBaseline(
-                latestScan,
-                windowSize
-              )
-            }
-          />
-        )
+      {message && (
+        <div className="entry-model-message">
+          {message}
+        </div>
       )}
 
-    </div>
-
-  </div>
-
-  {/* ================================================== */}
-  {/* LATEST SCAN */}
-  {/* ================================================== */}
-
-  <div className="entry-model-section">
-
-    <div className="entry-model-section-header">
-
-      <h2>
-        Latest Scan
-      </h2>
-
-      <div>
-        {latestScan
-          ? formatTime(
-              latestScan.timestamp ||
-                latestScan.time ||
-                latestScan.createdAt
-            )
-          : "-"}
-      </div>
-
-    </div>
-
-    {latestScan ? (
-      <div className="entry-model-latest">
-
-        <div>
-          <span>
-            Candle
-          </span>
-
-          <strong>
-            {latestScan.candleTime ??
-              "-"}
-          </strong>
+      {error && (
+        <div className="entry-model-error">
+          {error}
         </div>
+      )}
 
-        <div>
-          <span>
-            Price
-          </span>
+      {/* ================================================== */}
+      {/* BOT INFO */}
+      {/* ================================================== */}
 
-          <strong>
-            {formatPrice(
-              latestScan.price
-            )}
-          </strong>
-        </div>
+      {selectedBot && (
+        <div className="entry-model-info">
 
-        <div>
-          <span>
-            Trend
-          </span>
+          <div>
+            <span>
+              Bot
+            </span>
 
-          <strong
-            className={
-              getDirectionClass(
-                latestScan
-                  ?.trend
-                  ?.direction
-              )
-            }
-          >
-            {normalizeDirection(
-              latestScan
-                ?.trend
-                ?.direction
-            )}{" "}
-            {formatNumber(
-              latestScan
-                ?.trend
-                ?.strength ??
-                latestScan
-                  ?.trend
-                  ?.winningStrength,
-              2
-            )}
-            %
-          </strong>
-        </div>
+            <strong>
+              {selectedBot.name ||
+                selectedBot.id}
+            </strong>
+          </div>
 
-        <div>
-          <span>
-            Pullback
-          </span>
+          <div>
+            <span>
+              Symbol
+            </span>
 
-          <strong>
-            {shortVotes} SHORT /{" "}
-            {longVotes} LONG
-          </strong>
-        </div>
+            <strong>
+              {selectedBot.symbol ||
+                priceModel?.symbol ||
+                "-"}
+            </strong>
+          </div>
 
-        <div>
-          <span>
-            Final Signal
-          </span>
+          <div>
+            <span>
+              Direction
+            </span>
 
-          <strong
-            className={
-              getDirectionClass(
-                latestScan
-                  ?.decision
-              )
-            }
-          >
-            {normalizeDirection(
-              latestScan
-                ?.decision
-            )}
-          </strong>
-        </div>
-
-      </div>
-    ) : (
-      <div className="entry-model-empty">
-        No scan yet.
-        Press SCAN or START.
-      </div>
-    )}
-
-  </div>
-
-  {/* ================================================== */}
-  {/* CURRENT CYCLE */}
-  {/* ================================================== */}
-
-  <div className="entry-model-section">
-
-    <div className="entry-model-section-header">
-
-      <h2>
-        Current Cycle
-      </h2>
-
-      <div>
-        {currentScans.length} scans
-      </div>
-
-    </div>
-
-    <div className="entry-model-table-wrapper">
-
-      <table className="entry-model-table">
-
-        <thead>
-          <tr>
-
-            <th>
-              #
-            </th>
-
-            <th>
-              Time
-            </th>
-
-            <th>
-              Price
-            </th>
-
-            <th>
-              Trend
-            </th>
-
-            {WINDOWS.map(
-              (windowSize) => (
-                <th
-                  key={
-                    windowSize
-                  }
-                >
-                  {windowSize}m
-                </th>
-              )
-            )}
-
-            <th>
-              Signal
-            </th>
-
-          </tr>
-        </thead>
-
-        <tbody>
-
-          {currentScans.length ===
-          0 ? (
-            <tr>
-              <td
-                colSpan={
-                  5 +
-                  WINDOWS.length
-                }
-              >
-                No scans yet.
-              </td>
-            </tr>
-          ) : (
-            currentScans
-              .slice()
-              .reverse()
-              .map(
-                (
-                  row,
-                  index
-                ) => (
-                  <tr
-                    key={
-                      row.candleTime ||
-                      row.timestamp ||
-                      index
-                    }
-                  >
-
-                    <td>
-                      {currentScans.length -
-                        index}
-                    </td>
-
-                    <td>
-                      {formatTime(
-                        row.timestamp
-                      )}
-                    </td>
-
-                    <td>
-                      {formatPrice(
-                        row.price
-                      )}
-                    </td>
-
-                    <td
-                      className={
-                        getDirectionClass(
-                          row
-                            ?.trend
-                            ?.direction
-                        )
-                      }
-                    >
-                      <strong>
-                        {normalizeDirection(
-                          row
-                            ?.trend
-                            ?.direction
-                        )}
-                      </strong>
-
-                      <small>
-                        {" "}
-                        {formatNumber(
-                          row
-                            ?.trend
-                            ?.strength ??
-                            row
-                              ?.trend
-                              ?.winningStrength,
-                          2
-                        )}
-                        %
-                      </small>
-                    </td>
-
-                    {/* ================================== */}
-                    {/* WINDOWS */}
-                    {/* ================================== */}
-
-                    {WINDOWS.map(
-                      (
-                        windowSize
-                      ) => {
-                        const result =
-                          getWindowResult(
-                            row,
-                            windowSize
-                          );
-
-                        // ==================================================
-                        // IMPORTANT:
-                        // Final threshold-filtered direction.
-                        // rawDirection is NOT used for display.
-                        // ==================================================
-
-                        const direction =
-                          getWindowDirection(
-                            row,
-                            windowSize
-                          );
-
-                        const value =
-                          getWindowValue(
-                            row,
-                            windowSize
-                          );
-
-                        const movement =
-                          getWindowMovement(
-                            row,
-                            windowSize
-                          );
-
-                        const baseline =
-                          getMovementBaseline(
-                            row,
-                            windowSize
-                          );
-
-                        return (
-                          <td
-                            key={
-                              windowSize
-                            }
-                            className={
-                              getDirectionClass(
-                                direction
-                              )
-                            }
-                          >
-
-                            {/* DIRECTION */}
-                            <strong>
-                              {
-                                direction
-                              }
-                            </strong>
-
-                            {/* STRENGTH */}
-                            <small>
-                              {" "}
-                              {formatNumber(
-                                value,
-                                2
-                              )}
-                              %
-                            </small>
-
-                            {/* MOVEMENT DATA */}
-                            <div
-                              style={{
-                                marginTop:
-                                  "5px",
-                                fontSize:
-                                  "10px",
-                                lineHeight:
-                                  "1.5",
-                                color:
-                                  "#9ca3af",
-                              }}
-                            >
-
-                              <div>
-                                Actual:{" "}
-                                <span
-                                  className={
-                                    getDirectionClass(
-                                      movement
-                                        ?.direction
-                                    )
-                                  }
-                                >
-                                  {formatMovement(
-                                    movement
-                                      ?.actualMove,
-                                    2
-                                  )}
-                                </span>
-                              </div>
-
-                              <div>
-                                Average:{" "}
-                                {formatMovement(
-                                  baseline
-                                    ?.averageMove,
-                                  2
-                                )}
-                              </div>
-
-                              <div>
-                                High:{" "}
-                                {formatMovement(
-                                  baseline
-                                    ?.highMove,
-                                  2
-                                )}
-                              </div>
-
-                              <div>
-                                Extreme:{" "}
-                                {formatMovement(
-                                  baseline
-                                    ?.extremeMove ??
-                                    baseline
-                                      ?.maximumMove,
-                                  2
-                                )}
-                              </div>
-
-                              <div>
-                                Vs average:{" "}
-                                <strong>
-                                  {movement
-                                    ?.moveVsNormal !==
-                                    null &&
-                                  movement
-                                    ?.moveVsNormal !==
-                                    undefined
-                                    ? `${formatNumber(
-                                        movement.moveVsNormal,
-                                        1
-                                      )}%`
-                                    : "-"}
-                                </strong>
-                              </div>
-
-                            </div>
-
-                          </td>
-                        );
-                      }
-                    )}
-
-                    {/* ================================== */}
-                    {/* FINAL SIGNAL */}
-                    {/* ================================== */}
-
-                    <td
-                      className={
-                        getDirectionClass(
-                          row?.decision
-                        )
-                      }
-                    >
-                      <strong>
-                        {normalizeDirection(
-                          row?.decision
-                        )}
-                      </strong>
-                    </td>
-
-                  </tr>
+            <strong
+              className={
+                getDirectionClass(
+                  selectedBot.direction
                 )
-              )
-          )}
+              }
+            >
+              {normalizeDirection(
+                selectedBot.direction
+              )}
+            </strong>
+          </div>
 
-        </tbody>
+          <div>
+            <span>
+              Price Model
+            </span>
 
-      </table>
+            <strong
+              className={
+                priceModel?.running
+                  ? "long"
+                  : "neutral"
+              }
+            >
+              {priceModel?.running
+                ? "RUNNING"
+                : "STOPPED"}
+            </strong>
+          </div>
 
-    </div>
+          <div>
+            <span>
+              Current Price
+            </span>
 
-  </div>
+            <strong>
+              {formatPrice(
+                priceModel?.currentPrice
+              )}
+            </strong>
+          </div>
 
-  {/* ================================================== */}
-  {/* PREVIOUS CYCLES */}
-  {/* ================================================== */}
+          <div>
+            <span>
+              Trend Required
+            </span>
 
-  <div className="entry-model-section">
+            <strong>
+              {priceModel?.config
+                ?.trendRequired ??
+                53}
+              %
+            </strong>
+          </div>
 
-    <div className="entry-model-section-header">
+        </div>
+      )}
 
-      <h2>
-        Previous Cycles
-      </h2>
+      {/* ================================================== */}
+      {/* REAL CANDLE CHART */}
+      {/* ================================================== */}
 
-      <div>
-        {previousCycles.length} cycles
+      <div className="entry-model-section">
+
+        <div className="entry-model-section-header">
+
+          <h2>
+            Chart
+          </h2>
+
+          <div>
+            {chart?.symbol ||
+              selectedSymbol ||
+              "-"}
+          </div>
+
+        </div>
+
+        <div
+          ref={chartContainerRef}
+          className="entry-model-chart"
+        />
+
+        {!chart && (
+          <div className="entry-model-empty">
+            Chart data unavailable.
+          </div>
+        )}
+
       </div>
 
-    </div>
+      {/* ================================================== */}
+      {/* MOVEMENT BASELINE */}
+      {/* ================================================== */}
 
-    {previousCycles.length ===
-    0 ? (
-      <div className="entry-model-empty">
-        No completed cycles yet.
-      </div>
-    ) : (
-      <div className="entry-model-table-wrapper">
+      <div className="entry-model-section">
 
-        <table className="entry-model-table">
+        <div className="entry-model-section-header">
 
-          <thead>
-            <tr>
+          <h2>
+            Movement Baseline
+          </h2>
 
-              <th>
-                Cycle
-              </th>
+          <div>
+            Historical NET movement
+          </div>
 
-              <th>
-                Scans
-              </th>
+        </div>
 
-              <th>
-                Start
-              </th>
+        <div className="entry-model-info">
 
-              <th>
-                End
-              </th>
+          <div>
+            <span>
+              Candles Used
+            </span>
 
-              <th>
-                Votes
-              </th>
+            <strong>
+              {movementBaseline
+                ?.candlesUsed ??
+                "-"}
+            </strong>
+          </div>
 
-              <th>
-                Decision
-              </th>
+          <div>
+            <span>
+              Baseline
+            </span>
 
-              <th>
-                Reason
-              </th>
+            <strong
+              className={
+                movementBaseline
+                  ?.windows
+                  ? "long"
+                  : "neutral"
+              }
+            >
+              {movementBaseline
+                ?.windows
+                ? "READY"
+                : "WAITING"}
+            </strong>
+          </div>
 
-            </tr>
-          </thead>
+        </div>
 
-          <tbody>
+        <div className="entry-model-table-wrapper">
 
-            {previousCycles
-              .slice()
-              .reverse()
-              .map(
-                (
-                  cycle,
-                  index
-                ) => {
+          <table className="entry-model-table">
 
-                  const votes =
-                    cycle?.votes ||
-                    {};
+            <thead>
+              <tr>
+
+                <th>
+                  Window
+                </th>
+
+                <th>
+                  Samples
+                </th>
+
+                <th>
+                  Average
+                </th>
+
+                <th>
+                  High
+                </th>
+
+                <th>
+                  Extreme
+                </th>
+
+                <th>
+                  Median
+                </th>
+
+                <th>
+                  Range
+                </th>
+
+              </tr>
+            </thead>
+
+            <tbody>
+
+              {WINDOWS.map(
+                (windowSize) => {
+
+                  const baseline =
+                    getMovementBaseline(
+                      latestScan,
+                      windowSize
+                    );
 
                   return (
                     <tr
                       key={
-                        cycle.cycleId ||
-                        cycle.id ||
-                        index
+                        windowSize
                       }
                     >
 
                       <td>
-                        {cycle.cycleId ??
-                          index + 1}
-                      </td>
-
-                      <td>
-                        {cycle
-                          ?.candles
-                          ?.length ??
-                          cycle
-                            ?.scans
-                            ?.length ??
-                          0}
-                      </td>
-
-                      <td>
-                        {formatTime(
-                          cycle.startTime
-                        )}
-                      </td>
-
-                      <td>
-                        {formatTime(
-                          cycle.endTime
-                        )}
-                      </td>
-
-                      <td>
-                        {votes.long ??
-                          0}
-                        L /{" "}
-                        {votes.short ??
-                          0}
-                        S /{" "}
-                        {votes.neutral ??
-                          0}
-                        N
-                      </td>
-
-                      <td
-                        className={
-                          getDirectionClass(
-                            cycle.decision
-                          )
-                        }
-                      >
                         <strong>
-                          {normalizeDirection(
-                            cycle.decision
+                          {windowSize}m
+                        </strong>
+                      </td>
+
+                      <td>
+                        {baseline
+                          ?.samples ??
+                          "-"}
+                      </td>
+
+                      <td>
+                        <strong>
+                          {formatMovement(
+                            baseline
+                              ?.averageMove,
+                            2
                           )}
                         </strong>
                       </td>
 
                       <td>
-                        {cycle.reason ||
-                          "-"}
+                        <strong>
+                          {formatMovement(
+                            baseline
+                              ?.highMove,
+                            2
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {formatMovement(
+                            baseline
+                              ?.extremeMove ??
+                              baseline
+                                ?.maximumMove,
+                            2
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {formatMovement(
+                          baseline
+                            ?.medianMove,
+                          2
+                        )}
+                      </td>
+
+                      <td>
+                        {baseline
+                          ? `${formatMovement(
+                              baseline.minimumMove,
+                              2
+                            )} → ${formatMovement(
+                              baseline.maximumMove,
+                              2
+                            )}`
+                          : "-"}
                       </td>
 
                     </tr>
@@ -2398,17 +1602,661 @@ return ( <div className="entry-model-page-price">
                 }
               )}
 
-          </tbody>
+            </tbody>
 
-        </table>
+          </table>
+
+        </div>
 
       </div>
-    )}
 
-  </div>
+      {/* ================================================== */}
+      {/* PULLBACK WINDOWS */}
+      {/* ================================================== */}
 
-</div>
+      <div className="entry-model-section">
 
+        <div className="entry-model-section-header">
 
-);
+          <h2>
+            Pullback Windows
+          </h2>
+
+          <div>
+            Cycle{" "}
+            {priceModel?.cycleNumber ?? 0}
+            {" "}
+            | Scans{" "}
+            {priceModel?.scanCount ?? 0}
+            /
+            {priceModel?.config
+              ?.cycleLength ?? 10}
+          </div>
+
+        </div>
+
+        <div className="entry-model-grid">
+
+          {WINDOWS.map(
+            (windowSize) => (
+              <WindowCard
+                key={windowSize}
+                windowSize={
+                  windowSize
+                }
+                result={
+                  getWindowResult(
+                    latestScan,
+                    windowSize
+                  )
+                }
+                baseline={
+                  getMovementBaseline(
+                    latestScan,
+                    windowSize
+                  )
+                }
+              />
+            )
+          )}
+
+        </div>
+
+      </div>
+
+      {/* ================================================== */}
+      {/* LATEST SCAN */}
+      {/* ================================================== */}
+
+      <div className="entry-model-section">
+
+        <div className="entry-model-section-header">
+
+          <h2>
+            Latest Scan
+          </h2>
+
+          <div>
+            {latestScan
+              ? formatTime(
+                  latestScan.timestamp ||
+                    latestScan.time ||
+                    latestScan.createdAt
+                )
+              : "-"}
+          </div>
+
+        </div>
+
+        {latestScan ? (
+          <div className="entry-model-latest">
+
+            <div>
+              <span>
+                Candle
+              </span>
+
+              <strong>
+                {latestScan.candleTime ??
+                  "-"}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Price
+              </span>
+
+              <strong>
+                {formatPrice(
+                  latestScan.price
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Trend
+              </span>
+
+              <strong
+                className={
+                  getDirectionClass(
+                    latestScan
+                      ?.trend
+                      ?.direction
+                  )
+                }
+              >
+                {normalizeDirection(
+                  latestScan
+                    ?.trend
+                    ?.direction
+                )}{" "}
+                {formatNumber(
+                  latestScan
+                    ?.trend
+                    ?.strength ??
+                    latestScan
+                      ?.trend
+                      ?.winningStrength,
+                  2
+                )}
+                %
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Pullback
+              </span>
+
+              <strong>
+                {shortVotes} SHORT /{" "}
+                {longVotes} LONG
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Final Signal
+              </span>
+
+              <strong
+                className={
+                  getDirectionClass(
+                    latestScan
+                      ?.decision
+                  )
+                }
+              >
+                {normalizeDirection(
+                  latestScan
+                    ?.decision
+                )}
+              </strong>
+            </div>
+
+          </div>
+        ) : (
+          <div className="entry-model-empty">
+            No scan yet.
+            Press SCAN or START.
+          </div>
+        )}
+
+      </div>
+
+      {/* ================================================== */}
+      {/* CURRENT CYCLE */}
+      {/* ================================================== */}
+
+      <div className="entry-model-section">
+
+        <div className="entry-model-section-header">
+
+          <h2>
+            Current Cycle
+          </h2>
+
+          <div>
+            {currentScans.length} scans
+          </div>
+
+        </div>
+
+        <div className="entry-model-table-wrapper">
+
+          <table className="entry-model-table">
+
+            <thead>
+              <tr>
+
+                <th>
+                  #
+                </th>
+
+                <th>
+                  Time
+                </th>
+
+                <th>
+                  Price
+                </th>
+
+                <th>
+                  Trend
+                </th>
+
+                {WINDOWS.map(
+                  (windowSize) => (
+                    <th
+                      key={
+                        windowSize
+                      }
+                    >
+                      {windowSize}m
+                    </th>
+                  )
+                )}
+
+                <th>
+                  Signal
+                </th>
+
+              </tr>
+            </thead>
+
+            <tbody>
+
+              {currentScans.length ===
+              0 ? (
+                <tr>
+                  <td
+                    colSpan={
+                      5 +
+                      WINDOWS.length
+                    }
+                  >
+                    No scans yet.
+                  </td>
+                </tr>
+              ) : (
+                currentScans
+                  .slice()
+                  .reverse()
+                  .map(
+                    (
+                      row,
+                      index
+                    ) => (
+                      <tr
+                        key={
+                          row.candleTime ||
+                          row.timestamp ||
+                          index
+                        }
+                      >
+
+                        <td>
+                          {currentScans.length -
+                            index}
+                        </td>
+
+                        <td>
+                          {formatTime(
+                            row.timestamp
+                          )}
+                        </td>
+
+                        <td>
+                          {formatPrice(
+                            row.price
+                          )}
+                        </td>
+
+                        <td
+                          className={
+                            getDirectionClass(
+                              row
+                                ?.trend
+                                ?.direction
+                            )
+                          }
+                        >
+                          <strong>
+                            {normalizeDirection(
+                              row
+                                ?.trend
+                                ?.direction
+                            )}
+                          </strong>
+
+                          <small>
+                            {" "}
+                            {formatNumber(
+                              row
+                                ?.trend
+                                ?.strength ??
+                                row
+                                  ?.trend
+                                  ?.winningStrength,
+                              2
+                            )}
+                            %
+                          </small>
+                        </td>
+
+                        {WINDOWS.map(
+                          (
+                            windowSize
+                          ) => {
+                            const result =
+                              getWindowResult(
+                                row,
+                                windowSize
+                              );
+
+                            const direction =
+                              getWindowDirection(
+                                row,
+                                windowSize
+                              );
+
+                            const value =
+                              getWindowValue(
+                                row,
+                                windowSize
+                              );
+
+                            const movement =
+                              getWindowMovement(
+                                row,
+                                windowSize
+                              );
+
+                            const baseline =
+                              getMovementBaseline(
+                                row,
+                                windowSize
+                              );
+
+                            return (
+                              <td
+                                key={
+                                  windowSize
+                                }
+                                className={
+                                  getDirectionClass(
+                                    direction
+                                  )
+                                }
+                              >
+
+                                <strong>
+                                  {
+                                    direction
+                                  }
+                                </strong>
+
+                                <small>
+                                  {" "}
+                                  {formatNumber(
+                                    value,
+                                    2
+                                  )}
+                                  %
+                                </small>
+
+                                <div
+                                  style={{
+                                    marginTop:
+                                      "5px",
+                                    fontSize:
+                                      "10px",
+                                    lineHeight:
+                                      "1.5",
+                                    color:
+                                      "#9ca3af",
+                                  }}
+                                >
+
+                                  <div>
+                                    Actual:{" "}
+                                    <span
+                                      className={
+                                        getDirectionClass(
+                                          movement
+                                            ?.direction
+                                        )
+                                      }
+                                    >
+                                      {formatMovement(
+                                        movement
+                                          ?.actualMove,
+                                        2
+                                      )}
+                                    </span>
+                                  </div>
+
+                                  <div>
+                                    Average:{" "}
+                                    {formatMovement(
+                                      baseline
+                                        ?.averageMove,
+                                      2
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    High:{" "}
+                                    {formatMovement(
+                                      baseline
+                                        ?.highMove,
+                                      2
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    Extreme:{" "}
+                                    {formatMovement(
+                                      baseline
+                                        ?.extremeMove ??
+                                        baseline
+                                          ?.maximumMove,
+                                      2
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    Vs average:{" "}
+                                    <strong>
+                                      {movement
+                                        ?.moveVsNormal !==
+                                        null &&
+                                      movement
+                                        ?.moveVsNormal !==
+                                        undefined
+                                        ? `${formatNumber(
+                                            movement.moveVsNormal,
+                                            1
+                                          )}%`
+                                        : "-"}
+                                    </strong>
+                                  </div>
+
+                                </div>
+
+                              </td>
+                            );
+                          }
+                        )}
+
+                        <td
+                          className={
+                            getDirectionClass(
+                              row?.decision
+                            )
+                          }
+                        >
+                          <strong>
+                            {normalizeDirection(
+                              row?.decision
+                            )}
+                          </strong>
+                        </td>
+
+                      </tr>
+                    )
+                  )
+              )}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+      {/* ================================================== */}
+      {/* PREVIOUS CYCLES */}
+      {/* ================================================== */}
+
+      <div className="entry-model-section">
+
+        <div className="entry-model-section-header">
+
+          <h2>
+            Previous Cycles
+          </h2>
+
+          <div>
+            {previousCycles.length} cycles
+          </div>
+
+        </div>
+
+        {previousCycles.length ===
+        0 ? (
+          <div className="entry-model-empty">
+            No completed cycles yet.
+          </div>
+        ) : (
+          <div className="entry-model-table-wrapper">
+
+            <table className="entry-model-table">
+
+              <thead>
+                <tr>
+
+                  <th>
+                    Cycle
+                  </th>
+
+                  <th>
+                    Scans
+                  </th>
+
+                  <th>
+                    Start
+                  </th>
+
+                  <th>
+                    End
+                  </th>
+
+                  <th>
+                    Votes
+                  </th>
+
+                  <th>
+                    Decision
+                  </th>
+
+                  <th>
+                    Reason
+                  </th>
+
+                </tr>
+              </thead>
+
+              <tbody>
+
+                {previousCycles
+                  .slice()
+                  .reverse()
+                  .map(
+                    (
+                      cycle,
+                      index
+                    ) => {
+
+                      const votes =
+                        cycle?.votes ||
+                        {};
+
+                      return (
+                        <tr
+                          key={
+                            cycle.cycleId ||
+                            cycle.id ||
+                            index
+                          }
+                        >
+
+                          <td>
+                            {cycle.cycleId ??
+                              index + 1}
+                          </td>
+
+                          <td>
+                            {cycle
+                              ?.candles
+                              ?.length ??
+                              cycle
+                                ?.scans
+                                ?.length ??
+                              0}
+                          </td>
+
+                          <td>
+                            {formatTime(
+                              cycle.startTime
+                            )}
+                          </td>
+
+                          <td>
+                            {formatTime(
+                              cycle.endTime
+                            )}
+                          </td>
+
+                          <td>
+                            {votes.long ??
+                              0}
+                            L /{" "}
+                            {votes.short ??
+                              0}
+                            S /{" "}
+                            {votes.neutral ??
+                              0}
+                            N
+                          </td>
+
+                          <td
+                            className={
+                              getDirectionClass(
+                                cycle.decision
+                              )
+                            }
+                          >
+                            <strong>
+                              {normalizeDirection(
+                                cycle.decision
+                              )}
+                            </strong>
+                          </td>
+
+                          <td>
+                            {cycle.reason ||
+                              "-"}
+                          </td>
+
+                        </tr>
+                      );
+                    }
+                  )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+        )}
+
+      </div>
+
+    </div>
+  );
 }

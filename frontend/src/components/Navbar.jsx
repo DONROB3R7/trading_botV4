@@ -114,6 +114,24 @@ function Navbar() {
             Entry Model Price
           </NavLink>
 
+          {/* ==================================================
+              ENTRY MODEL COMBINED
+              ================================================== */}
+
+          <NavLink
+            to="/entry-model-combined"
+            className={({ isActive }) =>
+              `nav-link ${
+                isActive
+                  ? "active"
+                  : ""
+              }`
+            }
+          >
+            <span>🔗</span>
+            Entry Model Combined
+          </NavLink>
+
           <NavLink
             to="/trade-test"
             className={({ isActive }) =>
