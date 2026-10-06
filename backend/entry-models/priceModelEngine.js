@@ -46,9 +46,9 @@ const ENTRY_REQUIRED = 50;
 
 const ENTRY_CONFIRMATIONS_REQUIRED = 3;
 
-const CYCLE_LENGTH = 10;
+const CYCLE_LENGTH = 2;
 
-const CYCLE_REQUIRED = 6;
+const CYCLE_REQUIRED = 1;
 
 const HISTORY_LIMIT = 500;
 
@@ -65,7 +65,7 @@ const SCAN_INTERVAL_MS =
 // MOVEMENT EXPERIMENT
 // ============================================================
 
-const MOVEMENT_NEUTRAL_THRESHOLD = 100;
+const MOVEMENT_NEUTRAL_THRESHOLD = 4;
 
 class PriceModelEngine {
   constructor({

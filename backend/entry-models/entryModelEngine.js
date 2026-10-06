@@ -13,29 +13,24 @@
 // - Does NOT create TP
 // - Does NOT create SL
 //
-// FINAL DECISION BRIDGE:
+// FINAL DECISION:
 //
-// - LONG  -> calls existing Master Bot ENTER
-// - SHORT -> calls existing Master Bot ENTER
-// - NEUTRAL -> does nothing
+// - LONG  -> records decision only
+// - SHORT -> records decision only
+// - NEUTRAL -> records decision only
 //
-// The existing Master Bot remains responsible for:
-// - direction
-// - trigger
-// - pyramid
-// - order execution
-// - TP/SL
-// - position state
+// IMPORTANT:
+// The old Master Bot ENTER bridge has been removed.
 //
-// ENGINE RESPONSIBILITY:
+// REAL TRADING ENTRY IS NOW OWNED BY:
 //
-// - Maintain engine runtime state on the server
-// - TradeCycleManager owns cycle state
-// - Read REAL bot state from the bot object
-// - Scan orderbook every 60 seconds
-// - 10 successful scans per cycle
-// - 6/10 bot-direction votes = cycle decision
-// - Prepare complete display data for React
+// Price Model
+//      ↓
+// Combined Entry Model
+//      ↓
+// Orderbook Hunt
+//      ↓
+// BotEntry
 //
 // REACT IS NOT THE SOURCE OF TRUTH.
 //
@@ -43,9 +38,6 @@
 
 const OrderbookEntryModel =
   require("./orderbookEntryModel");
-
-const createMasterBotBridge =
-  require("./masterBotBridge");
 
 // ============================================================
 // SHARED TRADE CYCLE MANAGER
@@ -75,19 +67,6 @@ const CYCLE_SIZE =
 
 const SCAN_INTERVAL_MS =
   60 * 1000;
-
-// ============================================================
-// MASTER BOT BRIDGE
-// ============================================================
-
-const masterBotBridge =
-  createMasterBotBridge({
-    port:
-      Number(
-        process.env.PORT ||
-        3001
-      ),
-  });
 
 // ============================================================
 // ENGINE STORAGE
@@ -237,8 +216,6 @@ function majorityDirection(
 // - cycleScans
 // - previousCycles
 //
-// We keep these fields on the manager's cycle object.
-//
 // ============================================================
 
 function getCycle(
@@ -266,12 +243,6 @@ function getCycle(
 
   // ----------------------------------------------------------
   // SAFETY INITIALIZATION
-  // ----------------------------------------------------------
-  //
-  // Older cycle objects may not have these fields yet.
-  //
-  // We initialize them WITHOUT replacing existing state.
-  //
   // ----------------------------------------------------------
 
   if (
@@ -443,14 +414,6 @@ function createEngine(
 
     // --------------------------------------------------------
     // CYCLE
-    // --------------------------------------------------------
-    //
-    // IMPORTANT:
-    //
-    // These are references to the TradeCycleManager cycle.
-    //
-    // The manager owns the state.
-    //
     // --------------------------------------------------------
 
     cycle,
@@ -659,6 +622,12 @@ function prepareScanRecord(
 //
 // NEUTRAL
 //
+// IMPORTANT:
+//
+// This engine ONLY records the decision.
+//
+// It does NOT execute a trade.
+//
 // ============================================================
 
 async function completeCycle(
@@ -716,17 +685,17 @@ async function completeCycle(
   // CYCLE DECISION
   // ----------------------------------------------------------
 
- const requiredVotes =
-  Math.ceil(
-    CYCLE_SIZE * 0.60
-  );
+  const requiredVotes =
+    Math.ceil(
+      CYCLE_SIZE * 0.60
+    );
 
-const decision =
-  botDirectionVotes >=
-    requiredVotes &&
-  engine.botDirection
-    ? engine.botDirection
-    : "NEUTRAL";
+  const decision =
+    botDirectionVotes >=
+      requiredVotes &&
+    engine.botDirection
+      ? engine.botDirection
+      : "NEUTRAL";
 
   // ----------------------------------------------------------
   // TREND SUMMARY
@@ -878,7 +847,31 @@ const decision =
     decision;
 
   // ----------------------------------------------------------
-  // FINAL DECISION -> MASTER BOT
+  // FINAL DECISION
+  // ----------------------------------------------------------
+  //
+  // IMPORTANT:
+  //
+  // NO TRADE EXECUTION HERE.
+  //
+  // The old:
+  //
+  // masterBotBridge.enterBot()
+  //
+  // has intentionally been removed.
+  //
+  // This engine is now DISPLAY / ANALYSIS ONLY.
+  //
+  // Real entries must come through:
+  //
+  // Price Model
+  //      ↓
+  // Combined Entry Model
+  //      ↓
+  // Orderbook Hunt
+  //      ↓
+  // BotEntry
+  //
   // ----------------------------------------------------------
 
   if (
@@ -888,38 +881,20 @@ const decision =
       "SHORT"
   ) {
 
-    try {
-
-      console.log(
-        `[Entry Model Engine] FINAL DECISION | Bot=${engine.botId} | Decision=${decision} | Calling Master Bot ENTER`
-      );
-
-      await masterBotBridge.enterBot(
-        engine.botId
-      );
-
-      console.log(
-        `[Entry Model Engine] MASTER BOT ENTER COMPLETE | Bot=${engine.botId} | Decision=${decision}`
-      );
-
-    } catch (error) {
-
-      engine.lastError =
-        error?.message ||
-        String(error);
-
-      console.error(
-        `[Entry Model Engine] MASTER BOT ENTER FAILED | Bot=${engine.botId} | Decision=${decision}`,
-        error?.stack ||
-          error
-      );
-
-    }
+    console.log(
+      `[Entry Model Engine] FINAL DECISION | ` +
+      `Bot=${engine.botId} | ` +
+      `Decision=${decision} | ` +
+      `NO TRADE EXECUTION`
+    );
 
   } else {
 
     console.log(
-      `[Entry Model Engine] FINAL DECISION | Bot=${engine.botId} | Decision=NEUTRAL | No Master Bot action`
+      `[Entry Model Engine] FINAL DECISION | ` +
+      `Bot=${engine.botId} | ` +
+      `Decision=NEUTRAL | ` +
+      `No trade action`
     );
 
   }
@@ -935,7 +910,11 @@ const decision =
     Date.now();
 
   console.log(
-    `[Entry Model Engine] CYCLE COMPLETE | Bot=${engine.botId} | Cycle=${cycle.cycleNumber} | Decision=${decision} | Votes=${botDirectionVotes}/${CYCLE_SIZE}`
+    `[Entry Model Engine] CYCLE COMPLETE | ` +
+    `Bot=${engine.botId} | ` +
+    `Cycle=${cycle.cycleNumber} | ` +
+    `Decision=${decision} | ` +
+    `Votes=${botDirectionVotes}/${CYCLE_SIZE}`
   );
 }
 
@@ -1132,7 +1111,11 @@ async function runScan(
   try {
 
     console.log(
-      `[Entry Model Engine] SCAN | Bot=${engine.botId} | ${engine.symbol} | Bot=${engine.botDirection} | ${engine.cycle.cycleScans.length + 1}/${CYCLE_SIZE}`
+      `[Entry Model Engine] SCAN | ` +
+      `Bot=${engine.botId} | ` +
+      `${engine.symbol} | ` +
+      `Bot=${engine.botDirection} | ` +
+      `${engine.cycle.cycleScans.length + 1}/${CYCLE_SIZE}`
     );
 
     // --------------------------------------------------------
@@ -1140,7 +1123,10 @@ async function runScan(
     // --------------------------------------------------------
 
     console.log(
-      `[Entry Model Engine] ORDERBOOK CALL | Bot=${engine.botId} | Symbol=${engine.symbol} | Bot=${engine.botDirection}`
+      `[Entry Model Engine] ORDERBOOK CALL | ` +
+      `Bot=${engine.botId} | ` +
+      `Symbol=${engine.symbol} | ` +
+      `Bot=${engine.botDirection}`
     );
 
     const result =
@@ -1150,7 +1136,9 @@ async function runScan(
       );
 
     console.log(
-      `[Entry Model Engine] ORDERBOOK RETURNED | Bot=${engine.botId} | HasResult=${Boolean(result)}`
+      `[Entry Model Engine] ORDERBOOK RETURNED | ` +
+      `Bot=${engine.botId} | ` +
+      `HasResult=${Boolean(result)}`
     );
 
     // --------------------------------------------------------
@@ -1162,7 +1150,8 @@ async function runScan(
     ) {
 
       console.log(
-        `[Entry Model Engine] Empty scan result | Bot=${engine.botId}`
+        `[Entry Model Engine] Empty scan result | ` +
+        `Bot=${engine.botId}`
       );
 
       return;
@@ -1194,11 +1183,19 @@ async function runScan(
       Date.now();
 
     console.log(
-      `[Entry Model Engine] SCAN COMPLETE | Bot=${engine.botId} | Count=${engine.cycle.cycleScans.length}/${CYCLE_SIZE} | Decision=${scanRecord.decision || "UNKNOWN"}`
+      `[Entry Model Engine] SCAN COMPLETE | ` +
+      `Bot=${engine.botId} | ` +
+      `Count=${engine.cycle.cycleScans.length}/${CYCLE_SIZE} | ` +
+      `Decision=${scanRecord.decision || "UNKNOWN"}`
     );
 
     console.log(
-      `[Entry Model Engine] DEPTHS | Bot=${engine.botId} | 15=${scanRecord.trend15} ${scanRecord.percentage15 ?? "-"}% | 20=${scanRecord.trend20} ${scanRecord.percentage20 ?? "-"}% | 30=${scanRecord.trend30} ${scanRecord.percentage30 ?? "-"}% | 60=${scanRecord.trend60} ${scanRecord.percentage60 ?? "-"}%`
+      `[Entry Model Engine] DEPTHS | ` +
+      `Bot=${engine.botId} | ` +
+      `15=${scanRecord.trend15} ${scanRecord.percentage15 ?? "-"}% | ` +
+      `20=${scanRecord.trend20} ${scanRecord.percentage20 ?? "-"}% | ` +
+      `30=${scanRecord.trend30} ${scanRecord.percentage30 ?? "-"}% | ` +
+      `60=${scanRecord.trend60} ${scanRecord.percentage60 ?? "-"}%`
     );
 
     // --------------------------------------------------------
@@ -1239,7 +1236,9 @@ async function runScan(
       Date.now();
 
     console.log(
-      `[Entry Model Engine] RUN SCAN EXIT | Bot=${engine.botId} | Count=${engine.cycle.cycleScans.length}/${CYCLE_SIZE}`
+      `[Entry Model Engine] RUN SCAN EXIT | ` +
+      `Bot=${engine.botId} | ` +
+      `Count=${engine.cycle.cycleScans.length}/${CYCLE_SIZE}`
     );
   }
 }
@@ -1368,7 +1367,10 @@ async function startEngine(
     Date.now();
 
   console.log(
-    `[Entry Model Engine] START | Bot=${engine.botId} | ${engine.symbol} | ${engine.botDirection}`
+    `[Entry Model Engine] START | ` +
+    `Bot=${engine.botId} | ` +
+    `${engine.symbol} | ` +
+    `${engine.botDirection}`
   );
 
   // ----------------------------------------------------------
@@ -1376,7 +1378,8 @@ async function startEngine(
   // ----------------------------------------------------------
 
   console.log(
-    `[Entry Model Engine] START -> RUN SCAN | Bot=${engine.botId}`
+    `[Entry Model Engine] START -> RUN SCAN | ` +
+    `Bot=${engine.botId}`
   );
 
   await runScan(

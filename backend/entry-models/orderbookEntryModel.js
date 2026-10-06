@@ -4,53 +4,15 @@ const WeexClient =
 // ============================================================
 // ORDERBOOK ENTRY MODEL
 // ============================================================
-//
-// PURPOSE:
-//
-// Standalone Entry Model for testing.
-//
-// The model:
-//   1. Fetches ONE 200-level WEEX orderbook snapshot
-//   2. Splits that SAME snapshot into:
-//        10
-//        15
-//        25
-//        35
-//   3. Evaluates each depth
-//   4. Requires 3 of 4 confirmations
-//   5. Uses the BOT direction as the trend
-//   6. Looks for STRONG ORDERBOOK DIRECTION
-//
-// LONG:
-//   Looks for LONG strength.
-//
-// SHORT:
-//   Looks for SHORT strength.
-//
-// IMPORTANT:
-//
-// This file DOES NOT:
-//   - open trades
-//   - close trades
-//   - manage TP
-//   - manage SL
-//   - manage triggers
-//
-// ============================================================
-
-
-// ============================================================
-// CONFIG
-// ============================================================
 
 const WEEX_REQUEST_DEPTH =
   200;
 
 const CONFIRMATION_DEPTHS = [
+  5,
   10,
   15,
-  25,
-  35,
+  20,
 ];
 
 const REQUIRED_CONFIRMATIONS =
@@ -99,10 +61,6 @@ class OrderbookEntryModel {
     const root =
       response?.data ??
       response;
-
-    // --------------------------------------------------------
-    // Try common WEEX response shapes.
-    // --------------------------------------------------------
 
     let book =
       root?.data ??
@@ -192,6 +150,26 @@ class OrderbookEntryModel {
 
 
   // ==========================================================
+  // FORMAT PRICE
+  // ==========================================================
+
+  formatPrice(
+    price
+  ) {
+
+    if (
+      !Number.isFinite(price)
+    ) {
+      return null;
+    }
+
+    return Number(
+      price.toFixed(8)
+    );
+  }
+
+
+  // ==========================================================
   // CALCULATE DEPTH
   // ==========================================================
 
@@ -213,6 +191,9 @@ class OrderbookEntryModel {
         .filter(
           (level) =>
             Number.isFinite(
+              level.price
+            ) &&
+            Number.isFinite(
               level.quantity
             ) &&
             level.quantity > 0
@@ -230,15 +211,147 @@ class OrderbookEntryModel {
         .filter(
           (level) =>
             Number.isFinite(
+              level.price
+            ) &&
+            Number.isFinite(
               level.quantity
             ) &&
             level.quantity > 0
         );
 
 
-    // --------------------------------------------------------
-    // Not enough levels
-    // --------------------------------------------------------
+    // ========================================================
+    // PRICE RANGE
+    // ========================================================
+
+    const bidBestPrice =
+      bidLevels.length > 0
+        ? bidLevels[0].price
+        : null;
+
+    const bidDeepestPrice =
+      bidLevels.length > 0
+        ? bidLevels[
+            bidLevels.length - 1
+          ].price
+        : null;
+
+    const askBestPrice =
+      askLevels.length > 0
+        ? askLevels[0].price
+        : null;
+
+    const askDeepestPrice =
+      askLevels.length > 0
+        ? askLevels[
+            askLevels.length - 1
+          ].price
+        : null;
+
+
+    const lowestPrice =
+      [
+        bidDeepestPrice,
+        askDeepestPrice,
+      ]
+        .filter(
+          (price) =>
+            Number.isFinite(price)
+        )
+        .reduce(
+          (lowest, price) =>
+            Math.min(
+              lowest,
+              price
+            ),
+          Infinity
+        );
+
+    const highestPrice =
+      [
+        bidBestPrice,
+        askBestPrice,
+      ]
+        .filter(
+          (price) =>
+            Number.isFinite(price)
+        )
+        .reduce(
+          (highest, price) =>
+            Math.max(
+              highest,
+              price
+            ),
+          -Infinity
+        );
+
+
+    const priceRange =
+      Number.isFinite(
+        lowestPrice
+      ) &&
+      Number.isFinite(
+        highestPrice
+      )
+        ? {
+            low:
+              this.formatPrice(
+                lowestPrice
+              ),
+
+            high:
+              this.formatPrice(
+                highestPrice
+              ),
+          }
+        : null;
+
+
+    const bidPriceRange =
+      Number.isFinite(
+        bidBestPrice
+      ) &&
+      Number.isFinite(
+        bidDeepestPrice
+      )
+        ? {
+            best:
+              this.formatPrice(
+                bidBestPrice
+              ),
+
+            deepest:
+              this.formatPrice(
+                bidDeepestPrice
+              ),
+          }
+        : null;
+
+
+    const askPriceRange =
+      Number.isFinite(
+        askBestPrice
+      ) &&
+      Number.isFinite(
+        askDeepestPrice
+      )
+        ? {
+            best:
+              this.formatPrice(
+                askBestPrice
+              ),
+
+            deepest:
+              this.formatPrice(
+                askDeepestPrice
+              ),
+          }
+        : null;
+
+
+    // ========================================================
+    // NOT ENOUGH LEVELS
+    // ========================================================
 
     if (
       bidLevels.length <
@@ -285,13 +398,19 @@ class OrderbookEntryModel {
 
         enoughLevels:
           false,
+
+        bidPriceRange,
+
+        askPriceRange,
+
+        priceRange,
       };
     }
 
 
-    // --------------------------------------------------------
-    // Liquidity
-    // --------------------------------------------------------
+    // ========================================================
+    // LIQUIDITY
+    // ========================================================
 
     const bidLiquidity =
       bidLevels.reduce(
@@ -319,10 +438,6 @@ class OrderbookEntryModel {
       bidLiquidity +
       askLiquidity;
 
-
-    // --------------------------------------------------------
-    // No liquidity
-    // --------------------------------------------------------
 
     if (
       totalLiquidity <= 0
@@ -363,13 +478,19 @@ class OrderbookEntryModel {
 
         enoughLevels:
           true,
+
+        bidPriceRange,
+
+        askPriceRange,
+
+        priceRange,
       };
     }
 
 
-    // --------------------------------------------------------
-    // Imbalance
-    // --------------------------------------------------------
+    // ========================================================
+    // IMBALANCE
+    // ========================================================
 
     const imbalance =
       (
@@ -379,15 +500,12 @@ class OrderbookEntryModel {
       totalLiquidity;
 
 
-    // --------------------------------------------------------
-    // Ratios
-    // --------------------------------------------------------
-
     const bidAskRatio =
       askLiquidity > 0
         ? bidLiquidity /
           askLiquidity
         : Infinity;
+
 
     const askBidRatio =
       bidLiquidity > 0
@@ -396,9 +514,9 @@ class OrderbookEntryModel {
         : Infinity;
 
 
-    // --------------------------------------------------------
-    // LONG STRENGTH
-    // --------------------------------------------------------
+    // ========================================================
+    // LONG
+    // ========================================================
 
     const longImbalancePass =
       imbalance >=
@@ -413,9 +531,9 @@ class OrderbookEntryModel {
       longRatioPass;
 
 
-    // --------------------------------------------------------
-    // SHORT STRENGTH
-    // --------------------------------------------------------
+    // ========================================================
+    // SHORT
+    // ========================================================
 
     const shortImbalancePass =
       imbalance <=
@@ -430,9 +548,9 @@ class OrderbookEntryModel {
       shortRatioPass;
 
 
-    // --------------------------------------------------------
-    // Direction
-    // --------------------------------------------------------
+    // ========================================================
+    // DIRECTION
+    // ========================================================
 
     let direction =
       "NEUTRAL";
@@ -457,17 +575,6 @@ class OrderbookEntryModel {
 
     // ========================================================
     // PERCENTAGE
-    // ========================================================
-    //
-    // LONG:
-    //   BID / TOTAL
-    //
-    // SHORT:
-    //   ASK / TOTAL
-    //
-    // NEUTRAL:
-    //   null
-    //
     // ========================================================
 
     let percentage =
@@ -499,9 +606,9 @@ class OrderbookEntryModel {
     }
 
 
-    // --------------------------------------------------------
-    // Return depth result
-    // --------------------------------------------------------
+    // ========================================================
+    // RESULT
+    // ========================================================
 
     return {
 
@@ -513,7 +620,9 @@ class OrderbookEntryModel {
         percentage === null
           ? null
           : Number(
-              percentage.toFixed(2)
+              percentage.toFixed(
+                2
+              )
             ),
 
       bidLiquidity,
@@ -524,7 +633,9 @@ class OrderbookEntryModel {
 
       imbalance:
         Number(
-          imbalance.toFixed(6)
+          imbalance.toFixed(
+            6
+          )
         ),
 
       bidAskRatio:
@@ -563,6 +674,16 @@ class OrderbookEntryModel {
 
       enoughLevels:
         true,
+
+      // ======================================================
+      // NEW PRICE RANGE DATA
+      // ======================================================
+
+      bidPriceRange,
+
+      askPriceRange,
+
+      priceRange,
     };
   }
 
@@ -605,16 +726,6 @@ class OrderbookEntryModel {
       );
 
 
-    // --------------------------------------------------------
-    // SAME SNAPSHOT
-    //
-    // IMPORTANT:
-    //
-    // We do NOT request WEEX again.
-    //
-    // All four depths use these same arrays.
-    // --------------------------------------------------------
-
     const depths =
       CONFIRMATION_DEPTHS.map(
         (depth) =>
@@ -625,20 +736,6 @@ class OrderbookEntryModel {
           )
       );
 
-
-    // ========================================================
-    // SAME-DIRECTION CONFIRMATION
-    // ========================================================
-    //
-    // LONG bot:
-    //   We want LONG orderbook strength.
-    //
-    // SHORT bot:
-    //   We want SHORT orderbook strength.
-    //
-    // NO PULLBACK.
-    //
-    // ========================================================
 
     const passedDepths =
       depths.filter(
@@ -656,10 +753,6 @@ class OrderbookEntryModel {
       confirmations >=
       REQUIRED_CONFIRMATIONS;
 
-
-    // --------------------------------------------------------
-    // ENTRY DECISION
-    // --------------------------------------------------------
 
     const decision =
       directionConfirmed
@@ -709,6 +802,7 @@ class OrderbookEntryModel {
         .toUpperCase()
         .trim();
 
+
     if (
       !normalizedSymbol
     ) {
@@ -718,10 +812,6 @@ class OrderbookEntryModel {
       );
     }
 
-
-    // --------------------------------------------------------
-    // ONE WEEX REQUEST
-    // --------------------------------------------------------
 
     console.log(
       `[Entry Model] Orderbook scan | ${normalizedSymbol} | depth=${WEEX_REQUEST_DEPTH}`
@@ -742,10 +832,6 @@ class OrderbookEntryModel {
       );
 
 
-    // --------------------------------------------------------
-    // Analyze SAME snapshot
-    // --------------------------------------------------------
-
     const result =
       this.analyzeSnapshot(
         response,
@@ -754,11 +840,12 @@ class OrderbookEntryModel {
 
 
     console.log(
-      `[Entry Model] ${normalizedSymbol} | Bot=${result.botDirection} | SameDirection=${result.botDirection} | Confirmations=${result.confirmations}/${result.totalDepths} | Decision=${result.decision}`
+      `[Entry Model] ${normalizedSymbol} | Bot=${result.botDirection} | Confirmations=${result.confirmations}/${result.totalDepths} | Decision=${result.decision}`
     );
 
 
     return {
+
       symbol:
         normalizedSymbol,
 
@@ -768,10 +855,5 @@ class OrderbookEntryModel {
 }
 
 
-// ============================================================
-// EXPORT
-// ============================================================
-
 module.exports =
   OrderbookEntryModel;
-

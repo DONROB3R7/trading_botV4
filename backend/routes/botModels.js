@@ -35,6 +35,35 @@ class BotModels {
       });
 
     // ========================================================
+    // ORDERBOOK EXHAUSTED → PRICE MODEL BRIDGE
+    // ========================================================
+
+    this.combinedOrderbookScanner
+      .setReturnToPriceModelHandler(
+        async (botId) => {
+
+          console.log(
+            `[BotModels] ORDERBOOK EXHAUSTED → ` +
+            `START NEW PRICE MODEL | ` +
+            `Bot=${botId}`
+          );
+
+          const result =
+            await this.startPriceModel(
+              botId
+            );
+
+          console.log(
+            `[BotModels] NEW PRICE MODEL ` +
+            `CYCLE STARTED | ` +
+            `Bot=${botId}`
+          );
+
+          return result;
+        }
+      );
+
+    // ========================================================
     // PRICE MODEL → COMBINED ENTRY BRIDGE
     // ========================================================
 

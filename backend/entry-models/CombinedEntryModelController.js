@@ -1,27 +1,4 @@
-// ============================================================
-// COMBINED ENTRY MODEL CONTROLLER
-// ============================================================
-// Flow:
-//
-// IDLE
-//   ↓
-// PRICE_SIGNAL
-//   ↓
-// ORDERBOOK_HUNT
-//   ↓
-// ENTRY
-//   ↓
-// HUNT_AGAIN
-//   ↓
-// ORDERBOOK_HUNT
-//
-// If pyramid is full:
-//   → PYRAMID_FULL
-//
-// If 3 OB cycles expire:
-//   → IDLE
-//   → Price Model can start again
-// ============================================================
+// backend/entry-models/combinedEntryModelController.js
 
 const STATES = {
   IDLE: "IDLE",
@@ -34,392 +11,333 @@ const STATES = {
 
 const MAX_ORDERBOOK_CYCLES = 3;
 const SCANS_PER_CYCLE = 15;
-const REQUIRED_CONFIRMATIONS = 3;
+// Here 3 it's just for testing, for normal trading use 5 or 6 confirmations, but for testing 3 it's enough
+const REQUIRED_CONFIRMATIONS = 5;
 const MAX_PYRAMID = 3;
-
-// Keep enough completed cycles for the frontend.
-// This is history only. It does NOT affect trading logic.
 const MAX_PREVIOUS_CYCLES = 20;
 
 class CombinedEntryModelController {
-  constructor({
-    botId,
-    symbol = "",
-    direction = "NEUTRAL",
-  } = {}) {
-    this.botId = String(botId || "");
+  constructor(botId, symbol) {
+    this.botId = botId;
     this.symbol = symbol;
+
+    // ==========================================================
+    // STATE
+    // ==========================================================
 
     this.state = STATES.IDLE;
 
-    this.direction = direction;
-
+    this.direction = null;
     this.activeBotId = null;
 
     this.campaignNumber = 0;
 
-    this.orderbookCycle = 0;
-    this.orderbookScan = 0;
+    // ==========================================================
+    // ORDERBOOK STATE
+    // ==========================================================
 
+    this.orderbookCycle = 0;
+    this.orderbookScans = 0;
     this.confirmations = 0;
 
+    // ==========================================================
+    // PYRAMID STATE
+    // ==========================================================
+
     this.pyramidCount = 0;
+
+    // ==========================================================
+    // RESULT STATE
+    // ==========================================================
 
     this.finalResult = null;
 
     this.signalActive = false;
-
     this.running = false;
 
     // ==========================================================
-    // SCAN HISTORY
+    // HISTORY
     // ==========================================================
 
-    // Live scans for the current 15-scan cycle.
-    this.currentScans = [];
-
-    // Completed 15-scan cycles.
     this.previousCycles = [];
+
+    this.currentCycleScans = [];
+
+    // ==========================================================
+    // TIMESTAMPS
+    // ==========================================================
 
     this.createdAt = Date.now();
     this.updatedAt = Date.now();
-  }
-
-  // ==========================================================
-  // INTERNAL
-  // ==========================================================
-
-  touch() {
-    this.updatedAt = Date.now();
-  }
-
-  setState(state) {
-    this.state = state;
-    this.touch();
 
     console.log(
-      `[Combined] STATE | ` +
-        `Bot=${this.botId} | ` +
-        `${state}`
+      `[Combined] Controller created | ` +
+      `Bot=${this.botId} | ` +
+      `Symbol=${this.symbol}`
     );
   }
 
   // ==========================================================
-  // START / STOP
+  // START
   // ==========================================================
 
   start() {
     this.running = true;
-    this.touch();
+    this.updatedAt = Date.now();
 
     console.log(
       `[Combined] START | ` +
-        `Bot=${this.botId} | ` +
-        `Symbol=${this.symbol}`
+      `Bot=${this.botId} | ` +
+      `Symbol=${this.symbol}`
     );
 
     return this.getState();
   }
+
+  // ==========================================================
+  // STOP
+  // ==========================================================
 
   stop() {
     this.running = false;
-
-    this.touch();
+    this.updatedAt = Date.now();
 
     console.log(
       `[Combined] STOP | ` +
-        `Bot=${this.botId}`
+      `Bot=${this.botId}`
     );
 
     return this.getState();
   }
 
   // ==========================================================
-  // PRICE MODEL SIGNAL
+  // RECEIVE PRICE MODEL SIGNAL
   // ==========================================================
 
   receivePriceSignal(direction) {
+    this.updatedAt = Date.now();
+
     if (!this.running) {
-      return this.getState();
-    }
-
-    if (
-      direction !== "LONG" &&
-      direction !== "SHORT"
-    ) {
       console.log(
-        `[Combined] SIGNAL IGNORED | ` +
-          `Invalid direction=${direction}`
+        `[Combined] PRICE SIGNAL IGNORED | ` +
+        `Bot=${this.botId} | ` +
+        `Reason=Controller not running`
       );
 
       return this.getState();
     }
 
+    const normalizedDirection =
+      String(direction || "").toUpperCase();
+
     if (
-      this.state === STATES.PYRAMID_FULL
+      normalizedDirection !== "LONG" &&
+      normalizedDirection !== "SHORT"
     ) {
       console.log(
-        `[Combined] SIGNAL BLOCKED | ` +
-          `Pyramid full | ` +
-          `Bot=${this.botId}`
+        `[Combined] PRICE SIGNAL IGNORED | ` +
+        `Bot=${this.botId} | ` +
+        `Direction=${direction}`
       );
 
       return this.getState();
     }
 
-    this.direction = direction;
+    // ========================================================
+    // PYRAMID FULL
+    // ========================================================
+
+    if (this.state === STATES.PYRAMID_FULL) {
+      console.log(
+        `[Combined] PRICE SIGNAL IGNORED | ` +
+        `Bot=${this.botId} | ` +
+        `Reason=PYRAMID_FULL`
+      );
+
+      return this.getState();
+    }
+
+    // ========================================================
+    // NEW PRICE SIGNAL
+    // ========================================================
+
+    this.direction = normalizedDirection;
 
     this.signalActive = true;
 
     this.campaignNumber += 1;
 
     this.orderbookCycle = 0;
-    this.orderbookScan = 0;
+    this.orderbookScans = 0;
     this.confirmations = 0;
+
+    this.currentCycleScans = [];
 
     this.finalResult = null;
 
-    // New price campaign = new live scan table.
-    this.currentScans = [];
-
-    this.setState(
-      STATES.PRICE_SIGNAL
-    );
+    this.state = STATES.PRICE_SIGNAL;
 
     console.log(
       `[Combined] PRICE SIGNAL | ` +
-        `Bot=${this.botId} | ` +
-        `Direction=${direction} | ` +
-        `Campaign=${this.campaignNumber}`
+      `Bot=${this.botId} | ` +
+      `Direction=${this.direction} | ` +
+      `Campaign=${this.campaignNumber}`
     );
 
-    this.beginOrderbookHunt();
+    // Immediately move into orderbook hunt.
 
-    return this.getState();
+    return this.beginOrderbookHunt();
   }
 
   // ==========================================================
-  // ORDERBOOK HUNT
+  // BEGIN ORDERBOOK HUNT
   // ==========================================================
 
   beginOrderbookHunt() {
-    if (!this.signalActive) {
-      return this.getState();
-    }
+    this.updatedAt = Date.now();
 
-    if (
-      this.pyramidCount >= MAX_PYRAMID
-    ) {
-      this.finishPyramid();
-
+    if (!this.running) {
       return this.getState();
     }
 
     this.orderbookCycle += 1;
 
-    this.orderbookScan = 0;
+    this.orderbookScans = 0;
     this.confirmations = 0;
 
-    // New orderbook cycle = fresh live scan list.
-    this.currentScans = [];
+    this.currentCycleScans = [];
 
-    this.setState(
-      STATES.ORDERBOOK_HUNT
-    );
+    this.state = STATES.ORDERBOOK_HUNT;
 
     console.log(
-      `[Combined] HUNT START | ` +
-        `Bot=${this.botId} | ` +
-        `Cycle=${this.orderbookCycle}/${MAX_ORDERBOOK_CYCLES}`
+      `[Combined] ORDERBOOK HUNT | ` +
+      `Bot=${this.botId} | ` +
+      `Direction=${this.direction} | ` +
+      `Campaign=${this.campaignNumber} | ` +
+      `Cycle=${this.orderbookCycle}/${MAX_ORDERBOOK_CYCLES}`
     );
 
     return this.getState();
   }
 
   // ==========================================================
-  // STORE ONE ORDERBOOK SCAN
+  // PROCESS ORDERBOOK SCAN
   // ==========================================================
 
-  storeScan(scanResult = {}) {
-    const scan = {
-      timestamp:
-        scanResult.timestamp ||
-        new Date().toISOString(),
+  processOrderbookScan(scanResult = {}) {
+    this.updatedAt = Date.now();
 
-      symbol:
-        scanResult.symbol ||
-        this.symbol,
-
-      depths:
-        Array.isArray(scanResult.depths)
-          ? scanResult.depths
-          : [],
-
-      decision:
-        scanResult.decision ||
-        "NEUTRAL",
-
-      confirmed:
-        Boolean(
-          scanResult.confirmed
-        ),
-
-      scanNumber:
-        this.orderbookScan,
-
-      cycle:
-        this.orderbookCycle,
-
-      campaign:
-        this.campaignNumber,
-    };
-
-    this.currentScans.push(scan);
-
-    // Safety: never allow more than 15 live rows.
-    if (
-      this.currentScans.length >
-      SCANS_PER_CYCLE
-    ) {
-      this.currentScans =
-        this.currentScans.slice(
-          -SCANS_PER_CYCLE
-        );
-    }
-  }
-
-  // ==========================================================
-  // ORDERBOOK SCAN
-  // ==========================================================
-
-  processOrderbookScan({
-    confirmed = false,
-    scan = null,
-  } = {}) {
-    if (
-      !this.running ||
-      !this.signalActive ||
-      this.state !== STATES.ORDERBOOK_HUNT
-    ) {
+    if (!this.running) {
       return this.getState();
     }
 
-    this.orderbookScan += 1;
-
-    if (confirmed) {
-      this.confirmations += 1;
-    }
-
-    // --------------------------------------------------------
-    // SAVE REAL SCAN RESULT
-    // --------------------------------------------------------
-
-    if (scan) {
-      this.storeScan({
-        ...scan,
-        confirmed,
-      });
-    } else {
-      // Fallback row if scanner does not yet send details.
-      // This keeps the controller safe during transition.
-      this.storeScan({
-        symbol: this.symbol,
-        depths: [],
-        decision: confirmed
-          ? this.direction
-          : "NEUTRAL",
-        confirmed,
-      });
-    }
-
-    this.touch();
-
-    console.log(
-      `[Combined] OB SCAN | ` +
+    if (this.state !== STATES.ORDERBOOK_HUNT) {
+      console.log(
+        `[Combined] ORDERBOOK SCAN IGNORED | ` +
         `Bot=${this.botId} | ` +
-        `Cycle=${this.orderbookCycle}/${MAX_ORDERBOOK_CYCLES} | ` +
-        `Scan=${this.orderbookScan}/${SCANS_PER_CYCLE} | ` +
-        `Confirm=${this.confirmations}/${REQUIRED_CONFIRMATIONS}`
-    );
+        `State=${this.state}`
+      );
 
-    // --------------------------------------------------------
-    // ENTRY CONFIRMED
-    // --------------------------------------------------------
+      return this.getState();
+    }
+
+    this.orderbookScans += 1;
+
+    // ========================================================
+    // STORE SCAN
+    // ========================================================
+
+    const scan = {
+      scanNumber: this.orderbookScans,
+      cycle: this.orderbookCycle,
+      direction: this.direction,
+
+      confirmed:
+        scanResult.confirmed === true,
+
+      timestamp: Date.now(),
+
+      ...scanResult,
+    };
+
+    this.currentCycleScans.push(scan);
+
+    // ========================================================
+    // CONFIRMATION
+    // ========================================================
+
+    if (scan.confirmed) {
+      this.confirmations += 1;
+
+      console.log(
+        `[Combined] ORDERBOOK CONFIRMATION | ` +
+        `Bot=${this.botId} | ` +
+        `Direction=${this.direction} | ` +
+        `Cycle=${this.orderbookCycle} | ` +
+        `Scan=${this.orderbookScans}/${SCANS_PER_CYCLE} | ` +
+        `Confirmations=${this.confirmations}/${REQUIRED_CONFIRMATIONS}`
+      );
+    }
+
+    // ========================================================
+    // ENTRY QUALIFIED
+    // ========================================================
 
     if (
       this.confirmations >=
       REQUIRED_CONFIRMATIONS
     ) {
-      this.beginEntry();
-
-      return this.getState();
+      return this.beginEntry();
     }
 
-    // --------------------------------------------------------
-    // CURRENT 15-SCAN CYCLE FINISHED
-    // --------------------------------------------------------
+    // ========================================================
+    // CURRENT CYCLE FINISHED
+    // ========================================================
 
     if (
-      this.orderbookScan >=
+      this.orderbookScans >=
       SCANS_PER_CYCLE
     ) {
-      this.finishOrderbookCycle();
+      return this.finishOrderbookCycle();
     }
 
     return this.getState();
   }
 
   // ==========================================================
-  // SAVE COMPLETED CYCLE
+  // FINISH ORDERBOOK CYCLE
   // ==========================================================
 
-  savePreviousCycle() {
-    const cycle = {
-      completedAt:
-        new Date().toISOString(),
+  finishOrderbookCycle() {
+    this.updatedAt = Date.now();
 
-      campaign:
-        this.campaignNumber,
+    // ========================================================
+    // SAVE COMPLETED CYCLE
+    // ========================================================
 
-      cycle:
-        this.orderbookCycle,
+    const completedCycle = {
+      cycle: this.orderbookCycle,
+      campaign: this.campaignNumber,
+      direction: this.direction,
 
-      symbol:
-        this.symbol,
+      scans: this.orderbookScans,
+      confirmations: this.confirmations,
 
-      direction:
-        this.direction,
-
-      confirmations:
-        this.confirmations,
-
-      requiredConfirmations:
-        REQUIRED_CONFIRMATIONS,
-
-      scans:
-        this.orderbookScan,
-
-      totalScans:
-        this.currentScans.length,
-
-      decision:
-        this.confirmations >=
-        REQUIRED_CONFIRMATIONS
-          ? this.direction
-          : "EXPIRED",
-
-      finalResult:
+      result:
         this.confirmations >=
         REQUIRED_CONFIRMATIONS
           ? "CONFIRMED"
-          : "EXPIRED",
+          : "NO_ENTRY",
 
-      scanResults:
-        [...this.currentScans],
+      completedAt: Date.now(),
+
+      scansData: [
+        ...this.currentCycleScans,
+      ],
     };
 
     this.previousCycles.unshift(
-      cycle
+      completedCycle
     );
 
     if (
@@ -432,199 +350,248 @@ class CombinedEntryModelController {
           MAX_PREVIOUS_CYCLES
         );
     }
-  }
 
-  // ==========================================================
-  // CYCLE EXPIRED
-  // ==========================================================
-
-  finishOrderbookCycle() {
     console.log(
-      `[Combined] HUNT CYCLE EXPIRED | ` +
-        `Bot=${this.botId} | ` +
-        `Cycle=${this.orderbookCycle}/${MAX_ORDERBOOK_CYCLES}`
+      `[Combined] ORDERBOOK CYCLE COMPLETE | ` +
+      `Bot=${this.botId} | ` +
+      `Direction=${this.direction} | ` +
+      `Campaign=${this.campaignNumber} | ` +
+      `Cycle=${this.orderbookCycle}/${MAX_ORDERBOOK_CYCLES} | ` +
+      `Scans=${this.orderbookScans} | ` +
+      `Confirmations=${this.confirmations}/${REQUIRED_CONFIRMATIONS}`
     );
 
-    // Save the completed 15-scan cycle
-    // before starting the next one.
-    this.savePreviousCycle();
+    // ========================================================
+    // IMPORTANT:
+    //
+    // If we still have orderbook cycles available,
+    // start another orderbook hunt using the SAME
+    // price signal.
+    // ========================================================
 
     if (
-      this.orderbookCycle >=
+      this.orderbookCycle <
       MAX_ORDERBOOK_CYCLES
     ) {
-      this.expireSignal();
+      console.log(
+        `[Combined] ORDERBOOK → NEXT CYCLE | ` +
+        `Bot=${this.botId} | ` +
+        `NextCycle=${this.orderbookCycle + 1}/${MAX_ORDERBOOK_CYCLES}`
+      );
 
-      return this.getState();
+      return this.beginOrderbookHunt();
     }
 
-    this.orderbookScan = 0;
+    // ========================================================
+    // ALL ORDERBOOK CYCLES FAILED
+    //
+    // OLD WRONG BEHAVIOR:
+    //   expire signal and stay IDLE.
+    //
+    // CORRECT BEHAVIOR:
+    //   finish this price signal and return control
+    //   to the Price Model.
+    //
+    // The Price Model must start a completely fresh
+    // price cycle.
+    // ========================================================
+
+    console.log(
+      `[Combined] ORDERBOOK EXHAUSTED | ` +
+      `Bot=${this.botId} | ` +
+      `Campaign=${this.campaignNumber} | ` +
+      `Cycles=${MAX_ORDERBOOK_CYCLES} | ` +
+      `Result=RETURN_TO_PRICE_MODEL`
+    );
+
+    this.signalActive = false;
+
+    this.orderbookScans = 0;
     this.confirmations = 0;
 
-    this.beginOrderbookHunt();
+    this.currentCycleScans = [];
+
+    this.finalResult =
+      "RETURN_TO_PRICE_MODEL";
+
+    this.state = STATES.IDLE;
+
+    console.log(
+      `[Combined] RETURN TO PRICE MODEL | ` +
+      `Bot=${this.botId} | ` +
+      `PreviousDirection=${this.direction}`
+    );
 
     return this.getState();
   }
 
   // ==========================================================
-  // ENTRY
+  // BEGIN ENTRY
   // ==========================================================
 
   beginEntry() {
-    this.setState(
-      STATES.ENTRY
-    );
+    this.updatedAt = Date.now();
+
+    this.state = STATES.ENTRY;
+
+    this.finalResult = "ENTRY_READY";
 
     console.log(
       `[Combined] ENTRY READY | ` +
-        `Bot=${this.botId} | ` +
-        `Direction=${this.direction} | ` +
-        `Pyramid=${this.pyramidCount}/${MAX_PYRAMID}`
+      `Bot=${this.botId} | ` +
+      `Direction=${this.direction} | ` +
+      `Campaign=${this.campaignNumber} | ` +
+      `Pyramid=${this.pyramidCount}/${MAX_PYRAMID}`
     );
 
     return this.getState();
   }
 
-
   // ==========================================================
-  // ENTRY RESULT
+  // HANDLE ENTRY RESULT
   // ==========================================================
 
-  handleEntryResult({
-    success = false,
-    botId = null,
-  } = {}) {
-    if (
-      this.state !== STATES.ENTRY
-    ) {
-      return this.getState();
-    }
+  handleEntryResult(result = {}) {
+    this.updatedAt = Date.now();
 
-    if (botId !== null) {
-      this.activeBotId =
-        String(botId);
-    }
+    const success =
+      result.success === true;
+
+    // ========================================================
+    // ENTRY FAILED / SKIPPED
+    // ========================================================
 
     if (!success) {
       console.log(
         `[Combined] ENTRY FAILED | ` +
-          `Bot=${this.botId}`
+        `Bot=${this.botId} | ` +
+        `Direction=${this.direction} | ` +
+        `Reason=${result.reason || "UNKNOWN"}`
       );
 
-      this.setState(
-        STATES.ORDERBOOK_HUNT
-      );
+      this.state = STATES.ORDERBOOK_HUNT;
 
-      this.orderbookScan = 0;
+      this.orderbookScans = 0;
       this.confirmations = 0;
 
-      this.currentScans = [];
+      this.currentCycleScans = [];
+
+      this.finalResult = "ENTRY_FAILED";
 
       return this.getState();
     }
+
+    // ========================================================
+    // ENTRY SUCCESS
+    // ========================================================
 
     this.pyramidCount += 1;
 
+    this.finalResult = "ENTRY_COMPLETE";
+
     console.log(
       `[Combined] ENTRY SUCCESS | ` +
-        `Bot=${this.botId} | ` +
-        `Pyramid=${this.pyramidCount}/${MAX_PYRAMID}`
+      `Bot=${this.botId} | ` +
+      `Direction=${this.direction} | ` +
+      `Pyramid=${this.pyramidCount}/${MAX_PYRAMID}`
     );
 
-    // --------------------------------------------------------
+    // ========================================================
     // PYRAMID FULL
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
-      this.pyramidCount >= MAX_PYRAMID
+      this.pyramidCount >=
+      MAX_PYRAMID
     ) {
-      this.finishPyramid();
-
-      return this.getState();
+      return this.finishPyramid();
     }
 
-    // --------------------------------------------------------
-    // ENTRY SUCCEEDED
+    // ========================================================
+    // ENTRY COMPLETE BUT PYRAMID NOT FULL
     //
     // IMPORTANT:
-    // Do NOT go directly back to Orderbook.
     //
-    // Wait for the next Price Model signal.
-    // --------------------------------------------------------
+    // Do NOT use HUNT_AGAIN here.
+    //
+    // BotModels is responsible for starting a
+    // completely fresh Price Model cycle.
+    // ========================================================
 
     this.signalActive = false;
 
-    this.orderbookCycle = 0;
-    this.orderbookScan = 0;
+    this.orderbookScans = 0;
     this.confirmations = 0;
 
-    this.currentScans = [];
+    this.currentCycleScans = [];
 
-    this.finalResult =
-      "ENTRY_COMPLETE";
-
-    this.setState(
-      STATES.IDLE
-    );
+    this.state = STATES.IDLE;
 
     console.log(
       `[Combined] ENTRY COMPLETE | ` +
-        `Bot=${this.botId} | ` +
-        `Pyramid=${this.pyramidCount}/${MAX_PYRAMID} | ` +
-        `Waiting for NEW PRICE SIGNAL`
+      `Bot=${this.botId} | ` +
+      `Pyramid=${this.pyramidCount}/${MAX_PYRAMID} | ` +
+      `Waiting for NEW PRICE SIGNAL`
     );
 
     return this.getState();
   }
-
-
 
   // ==========================================================
   // PYRAMID FULL
   // ==========================================================
 
   finishPyramid() {
+    this.updatedAt = Date.now();
+
     this.signalActive = false;
 
     this.finalResult =
       "PYRAMID_FULL";
 
-    this.setState(
-      STATES.PYRAMID_FULL
-    );
+    this.state = STATES.PYRAMID_FULL;
 
     console.log(
       `[Combined] PYRAMID FULL | ` +
-        `Bot=${this.botId} | ` +
-        `Pyramid=${this.pyramidCount}/${MAX_PYRAMID}`
+      `Bot=${this.botId} | ` +
+      `Direction=${this.direction} | ` +
+      `Pyramid=${this.pyramidCount}/${MAX_PYRAMID} | ` +
+      `Waiting for position close`
     );
 
     return this.getState();
   }
 
   // ==========================================================
-  // SIGNAL EXPIRED
+  // EXPIRE SIGNAL
+  //
+  // Kept for compatibility.
+  //
+  // IMPORTANT:
+  // This is no longer used when orderbook cycles are
+  // exhausted. Exhaustion now returns to Price Model.
   // ==========================================================
 
   expireSignal() {
+    this.updatedAt = Date.now();
+
     this.signalActive = false;
+
+    this.orderbookScans = 0;
+    this.confirmations = 0;
+
+    this.currentCycleScans = [];
 
     this.finalResult =
       "SIGNAL_EXPIRED";
 
-    this.orderbookCycle = 0;
-    this.orderbookScan = 0;
-    this.confirmations = 0;
-
-    this.currentScans = [];
-
-    this.setState(
-      STATES.IDLE
-    );
+    this.state = STATES.IDLE;
 
     console.log(
       `[Combined] SIGNAL EXPIRED | ` +
-        `Bot=${this.botId}`
+      `Bot=${this.botId} | ` +
+      `Direction=${this.direction} | ` +
+      `Campaign=${this.campaignNumber}`
     );
 
     return this.getState();
@@ -635,75 +602,61 @@ class CombinedEntryModelController {
   // ==========================================================
 
   resetCampaign() {
-    this.signalActive = false;
+    this.updatedAt = Date.now();
 
-    this.direction = "NEUTRAL";
+    console.log(
+      `[Combined] RESET CAMPAIGN | ` +
+      `Bot=${this.botId}`
+    );
 
+    this.direction = null;
     this.activeBotId = null;
 
     this.orderbookCycle = 0;
-    this.orderbookScan = 0;
-
+    this.orderbookScans = 0;
     this.confirmations = 0;
 
     this.pyramidCount = 0;
 
     this.finalResult = null;
 
-    this.currentScans = [];
+    this.signalActive = false;
+
+    this.currentCycleScans = [];
+
     this.previousCycles = [];
 
-    this.setState(
-      STATES.IDLE
-    );
+    this.state = STATES.IDLE;
 
     return this.getState();
   }
 
   // ==========================================================
-  // STATUS
+  // GET STATE
   // ==========================================================
 
   getState() {
     return {
-      botId:
-        this.botId,
+      botId: this.botId,
 
-      symbol:
-        this.symbol,
+      symbol: this.symbol,
 
-      running:
-        this.running,
+      state: this.state,
 
-      state:
-        this.state,
+      direction: this.direction,
 
-      direction:
-        this.direction,
+      activeBotId: this.activeBotId,
 
-      campaignNumber:
-        this.campaignNumber,
-
-      activeBotId:
-        this.activeBotId,
+      campaignNumber: this.campaignNumber,
 
       orderbookCycle:
         this.orderbookCycle,
 
-      maxOrderbookCycles:
-        MAX_ORDERBOOK_CYCLES,
-
-      orderbookScan:
-        this.orderbookScan,
-
-      scansPerCycle:
-        SCANS_PER_CYCLE,
+      orderbookScans:
+        this.orderbookScans,
 
       confirmations:
         this.confirmations,
-
-      requiredConfirmations:
-        REQUIRED_CONFIRMATIONS,
 
       pyramidCount:
         this.pyramidCount,
@@ -711,34 +664,31 @@ class CombinedEntryModelController {
       maxPyramid:
         MAX_PYRAMID,
 
-      signalActive:
-        this.signalActive,
-
       finalResult:
         this.finalResult,
 
-      // ======================================================
-      // LIVE SCAN DATA
-      // ======================================================
+      signalActive:
+        this.signalActive,
 
-      currentScans:
-        this.currentScans,
+      running:
+        this.running,
 
-      // ======================================================
-      // COMPLETED CYCLE HISTORY
-      // ======================================================
+      previousCycles: [
+        ...this.previousCycles,
+      ],
 
-      previousCycles:
-        this.previousCycles,
+      currentCycleScans: [
+        ...this.currentCycleScans,
+      ],
 
       updatedAt:
         this.updatedAt,
+
+      createdAt:
+        this.createdAt,
     };
   }
 }
-
-CombinedEntryModelController.STATES =
-  STATES;
 
 module.exports =
   CombinedEntryModelController;

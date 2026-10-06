@@ -521,3 +521,231 @@
     padding: 11px 12px;
   }
 }
+
+
+/* ============================================================
+   COMBINED ENTRY MODEL - CURRENT CYCLE TABLE
+   ============================================================ */
+
+.entry-model-current-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.entry-model-current-table thead th {
+  padding: 11px 10px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.045);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.entry-model-current-table tbody td {
+  padding: 10px 8px;
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  white-space: nowrap;
+}
+
+.entry-model-current-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.entry-model-current-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.entry-model-current-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+/* ============================================================
+   DEPTH CELL
+   ============================================================ */
+
+.entry-model-depth-cell {
+  min-width: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.entry-model-depth-direction {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.entry-model-depth-direction.long {
+  color: #35d07f;
+}
+
+.entry-model-depth-direction.short {
+  color: #ff5c6c;
+}
+
+.entry-model-depth-direction.neutral {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.entry-model-depth-percentage {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.entry-model-depth-imbalance {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+/* ============================================================
+   DECISION
+   ============================================================ */
+
+.entry-model-decision {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.entry-model-decision.long {
+  color: #35d07f;
+  background: rgba(53, 208, 127, 0.10);
+  border: 1px solid rgba(53, 208, 127, 0.20);
+}
+
+.entry-model-decision.short {
+  color: #ff5c6c;
+  background: rgba(255, 92, 108, 0.10);
+  border: 1px solid rgba(255, 92, 108, 0.20);
+}
+
+.entry-model-decision.neutral {
+  color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* ============================================================
+   CONFIRMED
+   ============================================================ */
+
+.entry-model-confirmed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.entry-model-confirmed.yes {
+  color: #35d07f;
+  background: rgba(53, 208, 127, 0.10);
+}
+
+.entry-model-confirmed.no {
+  color: rgba(255, 255, 255, 0.40);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ============================================================
+   MOBILE / SMALL WINDOW
+   ============================================================ */
+
+.entry-model-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 10px;
+}
+
+.entry-model-table-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.entry-model-table-wrapper::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.entry-model-table-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+}
+
+
+.entry-model-depth-cell {
+  min-width: 105px;
+  min-height: 58px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 3px;
+
+  padding: 7px 10px;
+
+  border-radius: 7px;
+
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+
+  box-sizing: border-box;
+}
+
+.entry-model-depth-direction {
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.4px;
+}
+
+.entry-model-depth-direction.long {
+  color: #35d07f;
+}
+
+.entry-model-depth-direction.short {
+  color: #ff5c6c;
+}
+
+.entry-model-depth-direction.neutral {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.entry-model-depth-percentage {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.entry-model-depth-imbalance {
+  font-size: 10px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.40);
+  font-family: monospace;
+}

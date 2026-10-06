@@ -94,9 +94,23 @@ function getDepthResult(
   depth,
   fallbackKey
 ) {
+  /*
+    Backend structure:
+
+    currentCycleScans[]
+      └── scan
+           └── depths[]
+                ├── depth 5
+                ├── depth 10
+                ├── depth 15
+                └── depth 20
+  */
+
   const depths =
-    Array.isArray(scan?.depths)
-      ? scan.depths
+    Array.isArray(
+      scan?.scan?.depths
+    )
+      ? scan.scan.depths
       : [];
 
   const result =
@@ -108,6 +122,26 @@ function getDepthResult(
 
   if (result) {
     return result;
+  }
+
+  /*
+    Fallback for older data structure.
+  */
+
+  const oldDepths =
+    Array.isArray(scan?.depths)
+      ? scan.depths
+      : [];
+
+  const oldResult =
+    oldDepths.find(
+      (item) =>
+        Number(item?.depth) ===
+        Number(depth)
+    );
+
+  if (oldResult) {
+    return oldResult;
   }
 
   return {
@@ -173,11 +207,71 @@ function getDepthPercentage(
 }
 
 
+/* ============================================================
+DEPTH PRICE RANGE
+============================================================ */
+
+function getDepthPriceRange(
+  scan,
+  depth,
+  fallbackKey
+) {
+  const result =
+    getDepthResult(
+      scan,
+      depth,
+      fallbackKey
+    );
+
+  const priceRange =
+    result?.priceRange;
+
+  if (
+    !priceRange
+  ) {
+    return null;
+  }
+
+  const low =
+    Number(
+      priceRange.low
+    );
+
+  const high =
+    Number(
+      priceRange.high
+    );
+
+  if (
+    !Number.isFinite(low) ||
+    !Number.isFinite(high)
+  ) {
+    return null;
+  }
+
+  return {
+    low,
+    high,
+  };
+}
+
+
+/* ============================================================
+RENDER DEPTH CELL
+============================================================ */
+
 function renderDepthCell(
   scan,
   depth,
   fallbackKey
 ) {
+  const result =
+    getDepthResult(
+      scan,
+      depth,
+      fallbackKey
+    );
+
   const direction =
     getDepthDirection(
       scan,
@@ -192,26 +286,71 @@ function renderDepthCell(
       fallbackKey
     );
 
+  const imbalance =
+    Number.isFinite(
+      Number(result?.imbalance)
+    )
+      ? Number(result.imbalance)
+      : null;
+
+  const priceRange =
+    getDepthPriceRange(
+      scan,
+      depth,
+      fallbackKey
+    );
+
   return (
-    <>
+    <div className="entry-model-depth-cell">
+
+      {/* DIRECTION */}
+
       <span
-        className={`entry-model-direction ${direction.toLowerCase()}`}
+        className={`entry-model-depth-direction ${direction.toLowerCase()}`}
       >
         {direction}
       </span>
 
+
+      {/* PERCENTAGE */}
+
       {percentage !== null && (
-        <small
-          style={{
-            marginLeft: "5px",
-            opacity: 0.7,
-            fontSize: "11px",
-          }}
-        >
-          {percentage}%
-        </small>
+        <span className="entry-model-depth-percentage">
+          {percentage.toFixed(2)}%
+        </span>
       )}
-    </>
+
+
+      {/* IMBALANCE */}
+
+      {imbalance !== null && (
+        <span className="entry-model-depth-imbalance">
+          I: {imbalance.toFixed(4)}
+        </span>
+      )}
+
+
+      {/* PRICE RANGE */}
+
+      {priceRange && (
+        <span className="entry-model-depth-price-range">
+
+          <span>
+            {priceRange.low}
+          </span>
+
+          <span>
+            {" → "}
+          </span>
+
+          <span>
+            {priceRange.high}
+          </span>
+
+        </span>
+      )}
+
+    </div>
   );
 }
 
@@ -374,7 +513,7 @@ export default function EntryModel() {
 
   const orderbookScan =
     Number(
-      combinedState?.orderbookScan || 0
+      combinedState?.orderbookScans || 0
     );
 
   const scansPerCycle =
@@ -411,19 +550,22 @@ export default function EntryModel() {
     Backend is the source of truth.
 
     CombinedEntryModelController stores:
-      currentScans[]
 
-    Each scan contains:
-      timestamp
-      symbol
-      depths[]
-      decision
-      confirmed
-      scanNumber
-      cycle
-      campaign
+      currentCycleScans[]
 
-    The frontend only reads and displays them.
+    Actual structure:
+
+      currentCycleScans[]
+        └── scan
+             ├── symbol
+             ├── decision
+             ├── directionConfirmed
+             ├── confirmations
+             └── depths[]
+                  ├── depth 5
+                  ├── depth 10
+                  ├── depth 15
+                  └── depth 20
   */
 
   const currentScans =
@@ -432,13 +574,9 @@ export default function EntryModel() {
 
         const scans =
           Array.isArray(
-            combinedState?.currentScans
+            combinedState?.currentCycleScans
           )
-            ? combinedState.currentScans
-            : Array.isArray(
-                combinedState?.scans
-              )
-            ? combinedState.scans
+            ? combinedState.currentCycleScans
             : [];
 
         return [...scans].sort(
@@ -1915,114 +2053,140 @@ export default function EntryModel() {
           CURRENT CYCLE
           ==================================================== */}
 
-        <div className="entry-model-table-card">
+      <div className="entry-model-table-card">
 
-          <div className="entry-model-table-header">
+        <div className="entry-model-table-header">
 
-            <h2 className="entry-model-table-title">
-              CURRENT CYCLE
-            </h2>
+          <h2 className="entry-model-table-title">
+            CURRENT CYCLE
+          </h2>
 
-            <span className="entry-model-cycle-count">
-              {orderbookScan} / {scansPerCycle}
-            </span>
+          <span className="entry-model-cycle-count">
+            {orderbookScan} / {scansPerCycle}
+          </span>
 
-          </div>
+        </div>
 
 
-          <div className="entry-model-table-wrapper">
+        <div className="entry-model-table-wrapper">
 
-            <table className="entry-model-table">
+          <table className="entry-model-table">
 
-              <thead>
+            <thead>
+
+              <tr>
+
+                <th>
+                  Time
+                </th>
+
+                <th>
+                  Coin
+                </th>
+
+                <th>
+                  Direction
+                </th>
+
+                <th>
+                  Depth 5
+                </th>
+
+                <th>
+                  Depth 10
+                </th>
+
+                <th>
+                  Depth 15
+                </th>
+
+                <th>
+                  Depth 20
+                </th>
+
+                <th>
+                  Decision
+                </th>
+
+                <th>
+                  Confirmed
+                </th>
+
+              </tr>
+
+            </thead>
+
+
+            <tbody>
+
+              {currentScans.length === 0 ? (
 
                 <tr>
 
-                  <th>
-                    Time
-                  </th>
+                  <td
+                    colSpan="9"
+                    className="entry-model-empty"
+                  >
 
-                  <th>
-                    Coin
-                  </th>
+                    No scans yet.
 
-                  <th>
-                    Direction
-                  </th>
+                    <br />
 
-                  <th>
-                    Trend 10
-                  </th>
+                    Waiting for the next
+                    orderbook scan.
 
-                  <th>
-                    Trend 15
-                  </th>
+                    <br />
+                    <br />
 
-                  <th>
-                    Trend 25
-                  </th>
+                    <small>
+                      New scan every 20 seconds.
+                    </small>
 
-                  <th>
-                    Trend 35
-                  </th>
-
-                  <th>
-                    Decision
-                  </th>
-
-                  <th>
-                    Confirmed
-                  </th>
+                  </td>
 
                 </tr>
 
-              </thead>
+              ) : (
 
+                currentScans.map(
+                  (
+                    scan,
+                    index
+                  ) => {
 
-              <tbody>
+                    const scanSymbol =
+                      scan?.scan?.symbol ||
+                      scan?.symbol ||
+                      combinedState?.symbol ||
+                      selectedBot?.symbol ||
+                      "-";
 
-                {currentScans.length === 0 ? (
+                    const scanDirection =
+                      normalizeDirection(
+                        scan?.direction ||
+                        scan?.scan?.botDirection ||
+                        combinedDirection ||
+                        "NEUTRAL"
+                      );
 
-                  <tr>
+                    const decision =
+                      normalizeDirection(
+                        scan?.scan?.decision ||
+                        scan?.decision ||
+                        "NEUTRAL"
+                      );
 
-                    <td
-                      colSpan="9"
-                      className="entry-model-empty"
-                    >
-
-                      No scans yet.
-
-                      <br />
-
-                      Waiting for the next
-                      orderbook scan.
-
-                      <br />
-                      <br />
-
-                      <small>
-                        New scan every 20 seconds.
-                      </small>
-
-                    </td>
-
-                  </tr>
-
-                ) : (
-
-                  currentScans.map(
-                    (
-                      scan,
-                      index
-                    ) => (
+                    return (
 
                       <tr
                         key={
                           scan?.id ||
-                          scan?.timestamp ||
-                          index
+                          `${scan?.cycle || 0}-` +
+                          `${scan?.scanNumber || index}`
                         }
                       >
+
+                        {/* TIME */}
 
                         <td>
 
@@ -2035,36 +2199,44 @@ export default function EntryModel() {
                         </td>
 
 
+                        {/* COIN */}
+
                         <td>
 
-                          {scan?.symbol ||
-                            combinedState?.symbol ||
-                            selectedBot?.symbol ||
-                            "-"}
+                          {scanSymbol}
 
                         </td>
 
 
+                        {/* DIRECTION */}
+
                         <td>
 
                           <span
-                            className={`entry-model-decision ${
-                              String(
-                                scan?.direction ||
-                                combinedDirection ||
-                                "NEUTRAL"
-                              ).toLowerCase()
-                            }`}
+                            className={`entry-model-decision ${scanDirection.toLowerCase()}`}
                           >
 
-                            {scan?.direction ||
-                              combinedDirection ||
-                              "NEUTRAL"}
+                            {scanDirection}
 
                           </span>
 
                         </td>
 
+
+                        {/* DEPTH 5 */}
+
+                        <td>
+
+                          {renderDepthCell(
+                            scan,
+                            5,
+                            "trend5"
+                          )}
+
+                        </td>
+
+
+                        {/* DEPTH 10 */}
 
                         <td>
 
@@ -2077,6 +2249,8 @@ export default function EntryModel() {
                         </td>
 
 
+                        {/* DEPTH 15 */}
+
                         <td>
 
                           {renderDepthCell(
@@ -2088,46 +2262,35 @@ export default function EntryModel() {
                         </td>
 
 
-                        <td>
-
-                          {renderDepthCell(
-                            scan,
-                            25,
-                            "trend25"
-                          )}
-
-                        </td>
-
+                        {/* DEPTH 20 */}
 
                         <td>
 
                           {renderDepthCell(
                             scan,
-                            35,
-                            "trend35"
+                            20,
+                            "trend20"
                           )}
 
                         </td>
 
+
+                        {/* DECISION */}
 
                         <td>
 
                           <span
-                            className={`entry-model-decision ${
-                              String(
-                                scan?.decision ||
-                                "NEUTRAL"
-                              ).toLowerCase()
-                            }`}
+                            className={`entry-model-decision ${decision.toLowerCase()}`}
                           >
 
-                            {scan?.decision ||
-                              "NEUTRAL"}
+                            {decision}
 
                           </span>
 
                         </td>
 
+
+                        {/* CONFIRMED */}
 
                         <td>
 
@@ -2149,18 +2312,19 @@ export default function EntryModel() {
 
                       </tr>
 
-                    )
-                  )
+                    );
+                  }
+                )
 
-                )}
+              )}
 
-              </tbody>
+            </tbody>
 
-            </table>
-
-          </div>
+          </table>
 
         </div>
+
+      </div>
 
 
       {/* ====================================================

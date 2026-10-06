@@ -19,11 +19,10 @@ class CombinedEntryModelManager {
 
     if (!this.models.has(id)) {
       const controller =
-        new CombinedEntryModelController({
-          botId: id,
-          symbol,
-          direction,
-        });
+      new CombinedEntryModelController(
+        id,
+        symbol
+      );
 
       this.models.set(
         id,

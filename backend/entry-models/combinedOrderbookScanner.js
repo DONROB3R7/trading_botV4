@@ -3,6 +3,14 @@ const OrderbookEntryModel =
 
 const SCAN_INTERVAL_MS = 20 * 1000;
 
+// ============================================================
+// CONTROLLER VALUES
+// ============================================================
+
+const MAX_ORDERBOOK_CYCLES = 3;
+const SCANS_PER_CYCLE = 15;
+const REQUIRED_CONFIRMATIONS = 3;
+
 class CombinedOrderbookScanner {
   constructor({
     combinedEntryModelManager,
@@ -20,12 +28,15 @@ class CombinedOrderbookScanner {
     // ========================================================
     // ENTRY HANDLER
     // ========================================================
-    //
-    // Called when Combined Entry Model reaches ENTRY.
-    //
-    // The actual handler will be connected by bots.js.
-    //
+
     this.entryHandler =
+      null;
+
+    // ========================================================
+    // RETURN TO PRICE MODEL HANDLER
+    // ========================================================
+
+    this.returnToPriceModelHandler =
       null;
 
     console.log(
@@ -59,6 +70,34 @@ class CombinedOrderbookScanner {
   }
 
   // ==========================================================
+  // SET RETURN TO PRICE MODEL HANDLER
+  // ==========================================================
+
+  setReturnToPriceModelHandler(
+    handler
+  ) {
+    if (
+      typeof handler !== "function"
+    ) {
+      this.returnToPriceModelHandler =
+        null;
+
+      console.log(
+        "[Combined OB Scanner] Price Model handler CLEARED"
+      );
+
+      return;
+    }
+
+    this.returnToPriceModelHandler =
+      handler;
+
+    console.log(
+      "[Combined OB Scanner] Price Model handler CONNECTED"
+    );
+  }
+
+  // ==========================================================
   // START
   // ==========================================================
 
@@ -76,7 +115,9 @@ class CombinedOrderbookScanner {
     this.running.set(id, true);
 
     console.log(
-      `[Combined OB Scanner] START | Bot=${id} | Interval=20s`
+      `[Combined OB Scanner] START | ` +
+        `Bot=${id} | ` +
+        `Interval=20s`
     );
 
     // First scan immediately.
@@ -99,7 +140,8 @@ class CombinedOrderbookScanner {
 
     this.running.set(id, false);
 
-    const timer = this.timers.get(id);
+    const timer =
+      this.timers.get(id);
 
     if (timer) {
       clearInterval(timer);
@@ -125,7 +167,9 @@ class CombinedOrderbookScanner {
     // Prevent overlapping WEEX requests.
     if (this.scanning.get(id)) {
       console.log(
-        `[Combined OB Scanner] SKIP | Bot=${id} | Previous scan still running`
+        `[Combined OB Scanner] SKIP | ` +
+          `Bot=${id} | ` +
+          `Previous scan still running`
       );
 
       return;
@@ -145,7 +189,10 @@ class CombinedOrderbookScanner {
     const state =
       combined.getState();
 
-    // Only scan while Combined is actively hunting.
+    // ========================================================
+    // ONLY SCAN WHILE HUNTING
+    // ========================================================
+
     if (
       !state.running ||
       state.state !== "ORDERBOOK_HUNT" ||
@@ -153,6 +200,10 @@ class CombinedOrderbookScanner {
     ) {
       return;
     }
+
+    // ========================================================
+    // DIRECTION CHECK
+    // ========================================================
 
     if (
       state.direction !== "LONG" &&
@@ -165,6 +216,10 @@ class CombinedOrderbookScanner {
       return;
     }
 
+    // ========================================================
+    // SYMBOL CHECK
+    // ========================================================
+
     if (!state.symbol) {
       console.log(
         `[Combined OB Scanner] NO SYMBOL | Bot=${id}`
@@ -176,13 +231,23 @@ class CombinedOrderbookScanner {
     this.scanning.set(id, true);
 
     try {
+      // ======================================================
+      // SCAN NUMBER
+      // ======================================================
+
+      const currentScan =
+        Number(state.orderbookScans || 0) + 1;
+
+      const currentCycle =
+        Number(state.orderbookCycle || 1);
+
       console.log(
         `[Combined OB Scanner] SCAN | ` +
           `Bot=${id} | ` +
           `Symbol=${state.symbol} | ` +
           `Direction=${state.direction} | ` +
-          `Cycle=${state.orderbookCycle}/${state.maxOrderbookCycles} | ` +
-          `Scan=${state.orderbookScan + 1}/${state.scansPerCycle}`
+          `Cycle=${currentCycle}/${MAX_ORDERBOOK_CYCLES} | ` +
+          `Scan=${currentScan}/${SCANS_PER_CYCLE}`
       );
 
       // ======================================================
@@ -199,13 +264,13 @@ class CombinedOrderbookScanner {
       // CONFIRMATION
       // ======================================================
 
-        const confirmed =
+      const confirmed =
         Boolean(
           result &&
           result.directionConfirmed === true &&
           result.decision === state.direction
         );
-        
+
       console.log(
         `[Combined OB Scanner] RESULT | ` +
           `Bot=${id} | ` +
@@ -237,11 +302,15 @@ class CombinedOrderbookScanner {
           },
         });
 
+      // ======================================================
+      // STATE LOG
+      // ======================================================
+
       console.log(
         `[Combined OB Scanner] STATE | ` +
           `Bot=${id} | ` +
           `State=${nextState.state} | ` +
-          `Confirmations=${nextState.confirmations}/${nextState.requiredConfirmations}`
+          `Confirmations=${nextState.confirmations}/${REQUIRED_CONFIRMATIONS}`
       );
 
       // ======================================================
@@ -257,57 +326,27 @@ class CombinedOrderbookScanner {
           `[Combined OB Scanner] ENTRY READY | Bot=${id}`
         );
 
-        // ====================================================
-        // EXECUTION BRIDGE
-        // ====================================================
-        //
-        // IMPORTANT:
-        //
-        // The scanner does NOT open the order itself.
-        //
-        // It calls the existing BotEntry system.
-        //
-        // BotEntry will handle:
-        //
-        //   BotEntry.enter()
-        //        ↓
-        //   orders.openTestPosition()
-        //        ↓
-        //   WEEX
-        //        ↓
-        //   TradeLifecycle
-        //
-        // ====================================================
-
         if (
           typeof this.entryHandler ===
-            "function"
+          "function"
         ) {
-
           try {
-
             await this.entryHandler({
               botId: id,
               state: nextState,
               scan: result,
             });
-
           } catch (error) {
-
             console.error(
               `[Combined OB Scanner] ENTRY HANDLER ERROR | ` +
                 `Bot=${id} | ${error.message}`
             );
-
           }
-
         } else {
-
           console.warn(
             `[Combined OB Scanner] ENTRY HANDLER NOT CONNECTED | ` +
               `Bot=${id}`
           );
-
         }
       }
 
@@ -326,32 +365,55 @@ class CombinedOrderbookScanner {
       }
 
       // ======================================================
-      // SIGNAL EXPIRED
+      // RETURN TO PRICE MODEL
       // ======================================================
 
       if (
         nextState.state === "IDLE" &&
         nextState.finalResult ===
-          "SIGNAL_EXPIRED"
+          "RETURN_TO_PRICE_MODEL"
       ) {
         this.stop(id);
 
         console.log(
-          `[Combined OB Scanner] SIGNAL EXPIRED | Bot=${id}`
+          `[Combined OB Scanner] RETURN TO PRICE MODEL | ` +
+            `Bot=${id}`
         );
+
+        // ====================================================
+        // START FRESH PRICE MODEL CYCLE
+        // ====================================================
+
+        if (
+          typeof this.returnToPriceModelHandler ===
+          "function"
+        ) {
+          try {
+            await this.returnToPriceModelHandler(
+              id
+            );
+          } catch (error) {
+            console.error(
+              `[Combined OB Scanner] PRICE MODEL RESTART ERROR | ` +
+                `Bot=${id} | ${error.message}`
+            );
+          }
+        } else {
+          console.warn(
+            `[Combined OB Scanner] PRICE MODEL HANDLER NOT CONNECTED | ` +
+              `Bot=${id}`
+          );
+        }
       }
 
     } catch (error) {
-
       console.error(
         `[Combined OB Scanner] ERROR | ` +
           `Bot=${id} | ${error.message}`
       );
 
     } finally {
-
       this.scanning.set(id, false);
-
     }
   }
 
