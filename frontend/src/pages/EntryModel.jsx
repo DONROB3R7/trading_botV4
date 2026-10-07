@@ -528,7 +528,7 @@ export default function EntryModel() {
 
   const requiredConfirmations =
     Number(
-      combinedState?.requiredConfirmations || 3
+      combinedState?.requiredConfirmations || 5
     );
 
   const pyramidCount =
@@ -2473,7 +2473,7 @@ export default function EntryModel() {
                             ) >=
                             Number(
                               cycle?.requiredConfirmations ??
-                              3
+                              5
                             )
                               ? "good"
                               : "bad"
@@ -2486,7 +2486,7 @@ export default function EntryModel() {
                           {" / "}
 
                           {cycle?.requiredConfirmations ??
-                            3}
+                            5}
 
                         </span>
 

@@ -33,11 +33,11 @@ const MarketData = require("../../market/marketData");
 const TREND_CANDLES = 200;
 
 const ENTRY_WINDOWS = [
-  10,
-  15,
   20,
   30,
+  35,
   60,
+  120,
 ];
 
 const TREND_REQUIRED = 53;
@@ -65,7 +65,8 @@ const SCAN_INTERVAL_MS =
 // MOVEMENT EXPERIMENT
 // ============================================================
 
-const MOVEMENT_NEUTRAL_THRESHOLD = 4;
+/// Important value for determining if a price movement is significant enough to be considered directional
+const MOVEMENT_NEUTRAL_THRESHOLD = 160;
 
 class PriceModelEngine {
   constructor({
