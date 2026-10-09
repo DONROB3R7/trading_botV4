@@ -386,7 +386,7 @@ class BotModels {
             await priceModel.start();
 
             console.log(
-              `[BotModels] NEW PRICE CYCLE STARTED | ` +
+              `[BotModels] NEW PRICE MODEL CYCLE STARTED | ` +
               `Bot=${bot.id} | ` +
               `Pyramid=${bot.currentPositionCount}/${bot.maxPositions}`
             );
@@ -600,6 +600,7 @@ class BotModels {
     stopLoss,
     takeProfit,
     pyramidPositions,
+    pyramidDistance,
 
     triggerLineEnabled,
     triggerLinePrice,
@@ -632,6 +633,18 @@ class BotModels {
       takeProfit,
 
       pyramidPositions,
+
+      // ======================================================
+      // PYRAMID DISTANCE
+      // Stored as percentage.
+      //
+      // Example:
+      // 1    = 1%
+      // 0.5  = 0.5%
+      // 2    = 2%
+      // ======================================================
+
+      pyramidDistance,
 
       maxPositions:
         pyramidPositions,
@@ -716,8 +729,6 @@ class BotModels {
 
         // ====================================================
         // RESET COMBINED CONTROLLER
-        //
-        // THIS IS THE IMPORTANT FIX.
         //
         // Pyramid 1/3, 2/3 or 3/3
         // becomes:

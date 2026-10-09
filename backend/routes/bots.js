@@ -444,6 +444,35 @@ module.exports =
                 )
               )
             );
+            
+          // ==================================================
+          // PYRAMID DISTANCE
+          // ==================================================
+
+          const cleanPyramidDistance =
+            advanced.cleanNumber(
+              body.pyramidDistance,
+              1
+            );
+
+          if (
+            !Number.isFinite(
+              cleanPyramidDistance
+            ) ||
+            cleanPyramidDistance <= 0
+          ) {
+
+            return res.status(400).json({
+
+              success:
+                false,
+
+              error:
+                "Pyramid Distance must be greater than 0",
+
+            });
+
+          }  
 
           // ==================================================
           // TRIGGER LINE
@@ -608,6 +637,9 @@ module.exports =
 
               pyramidPositions:
                 cleanPyramidPositions,
+
+              pyramidDistance:
+                cleanPyramidDistance,  
 
               triggerLineEnabled,
 

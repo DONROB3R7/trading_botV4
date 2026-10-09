@@ -1,444 +1,545 @@
 /* ============================================================
-   BOT MANAGEMENT PAGE
-   ============================================================ */
+BOT MANAGEMENT PAGE
+============================================================ */
 
 .bot-management-page {
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 30px;
-  box-sizing: border-box;
+width: 100%;
+max-width: 1500px;
+margin: 0 auto;
+padding: 24px;
+box-sizing: border-box;
 }
 
 /* ============================================================
-   HEADER
-   ============================================================ */
+HEADER
+============================================================ */
 
 .bot-management-header {
-  margin-bottom: 24px;
+margin-bottom: 22px;
 }
 
 .bot-management-header h1 {
-  margin: 0;
-  color: #f8fafc;
-  font-size: 28px;
-  font-weight: 700;
+margin: 0;
+color: #f8fafc;
+font-size: 26px;
+font-weight: 700;
+line-height: 1.3;
 }
 
 .bot-management-header p {
-  margin: 7px 0 0;
-  color: #64748b;
-  font-size: 13px;
+margin: 6px 0 0;
+color: #94a3b8;
+font-size: 13px;
+line-height: 1.5;
 }
 
 /* ============================================================
-   SECTION TITLE
-   ============================================================ */
+SECTION TITLE
+============================================================ */
 
 .bot-section-title {
-  margin-bottom: 14px;
-  color: #94a3b8;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
+margin: 0 0 16px;
+color: #cbd5e1;
+font-size: 12px;
+font-weight: 700;
+letter-spacing: 0.8px;
+text-transform: uppercase;
 }
 
 /* ============================================================
-   CREATE BOT CARD
-   ============================================================ */
+CREATE BOT CARD
+============================================================ */
 
 .bot-create-card {
-  margin-bottom: 28px;
-  padding: 22px;
-  background: #0d1728;
-  border: 1px solid #1e3150;
-  border-radius: 10px;
-  box-sizing: border-box;
+margin-bottom: 26px;
+padding: 22px;
+background: #0d1728;
+border: 1px solid #223653;
+border-radius: 12px;
+box-sizing: border-box;
+box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
 }
 
 /* ============================================================
-   FORM
-   ============================================================ */
+FORM GRID
+Desktop: 3 columns
+Tablet: 2 columns
+Mobile: 1 column
+============================================================ */
 
 .bot-form-grid {
-  display: grid;
-  grid-template-columns:
-    repeat(5, minmax(0, 1fr));
-  gap: 16px;
+display: grid;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+gap: 16px 18px;
+align-items: start;
 }
 
 .bot-form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
+display: flex;
+flex-direction: column;
+gap: 7px;
+min-width: 0;
 }
 
 .bot-form-group label {
-  color: #94a3b8;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
+color: #a8b7cc;
+font-size: 11px;
+font-weight: 700;
+letter-spacing: 0.5px;
 }
 
 .bot-form-group input,
 .bot-form-group select {
-  width: 100%;
-  height: 42px;
-  padding: 0 12px;
-  box-sizing: border-box;
-
-  background: #08111f;
-  color: #f8fafc;
-
-  border: 1px solid #294467;
-  border-radius: 6px;
-
-  outline: none;
-  font-size: 13px;
+display: block;
+width: 100%;
+height: 40px;
+padding: 0 11px;
+box-sizing: border-box;
+background: #08111f;
+color: #f1f5f9;
+border: 1px solid #2a4160;
+border-radius: 7px;
+outline: none;
+font-family: inherit;
+font-size: 13px;
+transition:
+border-color 0.15s ease,
+box-shadow 0.15s ease,
+background 0.15s ease;
 }
 
 .bot-form-group input::placeholder {
-  color: #475569;
+color: #64748b;
+}
+
+.bot-form-group input:hover:not(:disabled),
+.bot-form-group select:hover:not(:disabled) {
+border-color: #3b587d;
 }
 
 .bot-form-group input:focus,
 .bot-form-group select:focus {
-  border-color: #3b82f6;
+border-color: #3b82f6;
+box-shadow: 0 0 0 3px rgb(59 130 246 / 12%);
 }
 
 .bot-form-group input:disabled,
 .bot-form-group select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+opacity: 0.55;
+cursor: not-allowed;
+}
+
+.bot-form-group select {
+cursor: pointer;
+}
+
+.bot-form-group select option {
+background: #0d1728;
+color: #f1f5f9;
 }
 
 /* ============================================================
-   STATIC ENTRY MODEL
-   ============================================================ */
+STATIC ENTRY MODEL FIELD
+============================================================ */
 
 .bot-static-field {
-  display: flex;
-  align-items: center;
-
-  width: 100%;
-  height: 42px;
-  padding: 0 12px;
-  box-sizing: border-box;
-
-  background: #08111f;
-  color: #cbd5e1;
-
-  border: 1px solid #294467;
-  border-radius: 6px;
-
-  font-size: 13px;
+display: flex;
+align-items: center;
+width: 100%;
+min-height: 40px;
+padding: 0 11px;
+box-sizing: border-box;
+background: #08111f;
+color: #cbd5e1;
+border: 1px solid #2a4160;
+border-radius: 7px;
+font-size: 13px;
 }
 
 /* ============================================================
-   CREATE BUTTON
-   ============================================================ */
+TRIGGER SETTINGS
+============================================================ */
+
+.bot-trigger-group {
+display: flex;
+flex-direction: column;
+gap: 10px;
+min-width: 0;
+}
+
+.bot-checkbox-row {
+display: flex;
+align-items: center;
+gap: 9px;
+min-height: 40px;
+padding: 0 11px;
+box-sizing: border-box;
+background: #08111f;
+border: 1px solid #2a4160;
+border-radius: 7px;
+color: #cbd5e1;
+font-size: 12px;
+}
+
+.bot-checkbox-row input[type="checkbox"] {
+width: 15px;
+height: 15px;
+margin: 0;
+accent-color: #3b82f6;
+cursor: pointer;
+}
+
+/* ============================================================
+CREATE BUTTON
+============================================================ */
 
 .bot-create-button {
-  height: 42px;
-  margin-top: 18px;
-  padding: 0 22px;
-
-  background: #2563eb;
-  color: #ffffff;
-
-  border: 1px solid #3b82f6;
-  border-radius: 6px;
-
-  font-size: 12px;
-  font-weight: 700;
-
-  cursor: pointer;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+min-width: 160px;
+min-height: 42px;
+margin-top: 20px;
+padding: 0 20px;
+background: #2563eb;
+color: #ffffff;
+border: 1px solid #3b82f6;
+border-radius: 7px;
+font-family: inherit;
+font-size: 12px;
+font-weight: 700;
+letter-spacing: 0.3px;
+cursor: pointer;
+transition:
+background 0.15s ease,
+border-color 0.15s ease,
+transform 0.15s ease;
 }
 
 .bot-create-button:hover:not(:disabled) {
-  background: #1d4ed8;
+background: #1d4ed8;
+border-color: #60a5fa;
+}
+
+.bot-create-button:active:not(:disabled) {
+transform: translateY(1px);
 }
 
 .bot-create-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+opacity: 0.55;
+cursor: not-allowed;
 }
 
 /* ============================================================
-   SUCCESS / ERROR
-   ============================================================ */
+SUCCESS / ERROR MESSAGES
+============================================================ */
 
 .bot-success-message,
 .bot-error-message {
-  margin-top: 14px;
-  padding: 11px 14px;
-
-  border-radius: 6px;
-
-  font-size: 13px;
+margin-top: 14px;
+padding: 11px 14px;
+border-radius: 7px;
+font-size: 13px;
+line-height: 1.5;
 }
 
 .bot-success-message {
-  background: #10251b;
-  border: 1px solid #166534;
-  color: #86efac;
+background: #10251b;
+border: 1px solid #166534;
+color: #86efac;
 }
 
 .bot-error-message {
-  background: #32151a;
-  border: 1px solid #7f1d1d;
-  color: #fca5a5;
+background: #32151a;
+border: 1px solid #7f1d1d;
+color: #fca5a5;
 }
 
 /* ============================================================
-   BOT LIST
-   ============================================================ */
+BOT LIST
+============================================================ */
 
 .bot-list-section {
-  width: 100%;
+width: 100%;
+min-width: 0;
 }
 
 .bot-empty {
-  padding: 30px;
-  background: #0d1728;
-  border: 1px solid #1e3150;
-  border-radius: 10px;
-
-  color: #64748b;
-  text-align: center;
-  font-size: 13px;
+padding: 32px 20px;
+background: #0d1728;
+border: 1px solid #223653;
+border-radius: 10px;
+color: #94a3b8;
+text-align: center;
+font-size: 13px;
 }
 
 .bot-list {
-  display: grid;
-  grid-template-columns:
-    repeat(2, minmax(0, 1fr));
-  gap: 16px;
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 18px;
+align-items: start;
 }
 
 /* ============================================================
-   BOT CARD
-   ============================================================ */
+BOT CARD
+============================================================ */
 
 .bot-card {
-  padding: 20px;
+min-width: 0;
+padding: 20px;
+background: #0d1728;
+border: 1px solid #223653;
+border-radius: 12px;
+box-sizing: border-box;
+transition:
+border-color 0.15s ease,
+box-shadow 0.15s ease;
+}
 
-  background: #0d1728;
-  border: 1px solid #1e3150;
-  border-radius: 10px;
-
-  box-sizing: border-box;
+.bot-card:hover {
+border-color: #304969;
+box-shadow: 0 8px 24px rgb(0 0 0 / 10%);
 }
 
 /* ============================================================
-   BOT CARD HEADER
-   ============================================================ */
+BOT CARD HEADER
+============================================================ */
 
 .bot-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-
-  gap: 15px;
-
-  padding-bottom: 16px;
-
-  border-bottom: 1px solid #1b2b43;
+display: flex;
+justify-content: space-between;
+align-items: flex-start;
+gap: 14px;
+padding-bottom: 16px;
+border-bottom: 1px solid #1e3049;
 }
 
 .bot-name {
-  color: #f8fafc;
-  font-size: 17px;
-  font-weight: 700;
+overflow-wrap: anywhere;
+color: #f8fafc;
+font-size: 16px;
+font-weight: 700;
+line-height: 1.4;
 }
 
 .bot-symbol {
-  margin-top: 5px;
-  color: #60a5fa;
-  font-size: 12px;
-  font-weight: 600;
+margin-top: 5px;
+color: #60a5fa;
+font-size: 12px;
+font-weight: 600;
 }
 
 /* ============================================================
-   STATUS
-   ============================================================ */
+BOT STATUS
+============================================================ */
 
 .bot-status {
-  padding: 5px 9px;
-
-  border-radius: 5px;
-
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+flex-shrink: 0;
+padding: 5px 9px;
+border-radius: 5px;
+font-size: 10px;
+font-weight: 700;
+letter-spacing: 0.5px;
+white-space: nowrap;
 }
 
 .bot-status.active {
-  background: #10251b;
-  border: 1px solid #166534;
-  color: #86efac;
+background: #10251b;
+border: 1px solid #166534;
+color: #86efac;
 }
 
 .bot-status.paused {
-  background: #29200d;
-  border: 1px solid #854d0e;
-  color: #facc15;
+background: #29200d;
+border: 1px solid #854d0e;
+color: #facc15;
 }
 
 /* ============================================================
-   BOT INFO
-   ============================================================ */
+BOT INFORMATION
+============================================================ */
 
 .bot-card-info {
-  display: grid;
-  grid-template-columns:
-    repeat(3, minmax(0, 1fr));
-
-  gap: 12px;
-
-  padding: 18px 0;
+display: grid;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+gap: 18px 12px;
+padding: 18px 0;
 }
 
 .bot-card-info > div {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-
-  min-width: 0;
+display: flex;
+flex-direction: column;
+gap: 6px;
+min-width: 0;
 }
 
 .bot-card-info span {
-  color: #64748b;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
+color: #8494ab;
+font-size: 10px;
+font-weight: 700;
+letter-spacing: 0.5px;
+line-height: 1.4;
 }
 
 .bot-card-info strong {
-  color: #e2e8f0;
-  font-size: 13px;
-  font-weight: 600;
+color: #e2e8f0;
+font-size: 13px;
+font-weight: 600;
+line-height: 1.4;
+overflow-wrap: anywhere;
 }
 
 /* ============================================================
-   BOT ACTIONS
-   ============================================================ */
+BOT ACTIONS
+============================================================ */
 
 .bot-card-actions {
-  display: flex;
-  gap: 10px;
-
-  padding-top: 15px;
-
-  border-top: 1px solid #1b2b43;
+display: flex;
+gap: 10px;
+padding-top: 15px;
+border-top: 1px solid #1e3049;
 }
 
 .bot-toggle-button,
 .bot-delete-button {
-  height: 38px;
-  padding: 0 16px;
-
-  border-radius: 6px;
-
-  font-size: 11px;
-  font-weight: 700;
-
-  cursor: pointer;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+min-width: 0;
+min-height: 38px;
+padding: 0 14px;
+border-radius: 7px;
+font-family: inherit;
+font-size: 11px;
+font-weight: 700;
+cursor: pointer;
+transition:
+background 0.15s ease,
+border-color 0.15s ease,
+color 0.15s ease;
 }
 
-/* ============================================================
-   PAUSE / RESUME
-   ============================================================ */
+/* Pause / Resume */
 
 .bot-toggle-button {
-  flex: 1;
-
-  background: #13233a;
-  border: 1px solid #294467;
-  color: #cbd5e1;
+flex: 1;
+background: #13233a;
+border: 1px solid #294467;
+color: #cbd5e1;
 }
 
 .bot-toggle-button:hover:not(:disabled) {
-  background: #172b47;
-  border-color: #3b82f6;
-  color: #f8fafc;
+background: #172b47;
+border-color: #3b82f6;
+color: #f8fafc;
 }
 
-/* ============================================================
-   DELETE
-   ============================================================ */
+/* Delete */
 
 .bot-delete-button {
-  background: #32151a;
-  border: 1px solid #7f1d1d;
-  color: #fca5a5;
+flex-shrink: 0;
+background: #32151a;
+border: 1px solid #7f1d1d;
+color: #fca5a5;
 }
 
 .bot-delete-button:hover:not(:disabled) {
-  background: #451a1f;
-  border-color: #ef4444;
-  color: #fecaca;
+background: #451a1f;
+border-color: #ef4444;
+color: #fecaca;
 }
 
-/* ============================================================
-   DISABLED BUTTONS
-   ============================================================ */
+/* Disabled buttons */
 
 .bot-toggle-button:disabled,
 .bot-delete-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+opacity: 0.5;
+cursor: not-allowed;
 }
 
 /* ============================================================
-   RESPONSIVE
-   ============================================================ */
+RESPONSIVE: TABLET / SMALL DESKTOP
+============================================================ */
 
-@media (
-  max-width: 1100px
-) {
-  .bot-form-grid {
-    grid-template-columns:
-      repeat(3, minmax(0, 1fr));
-  }
-
-  .bot-list {
-    grid-template-columns:
-      1fr;
-  }
+@media (max-width: 1100px) {
+.bot-management-page {
+padding: 20px;
 }
 
-@media (
-  max-width: 700px
-) {
-  .bot-management-page {
-    padding: 20px;
-  }
+.bot-form-grid {
+grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 
-  .bot-form-grid {
-    grid-template-columns:
-      1fr;
-  }
+.bot-list {
+grid-template-columns: 1fr;
+}
+}
 
-  .bot-create-card {
-    padding: 18px;
-  }
+/* ============================================================
+RESPONSIVE: MOBILE
+============================================================ */
 
-  .bot-card {
-    padding: 16px;
-  }
+@media (max-width: 650px) {
+.bot-management-page {
+padding: 14px;
+}
 
-  .bot-card-info {
-    grid-template-columns:
-      repeat(3, minmax(0, 1fr));
-  }
+.bot-management-header h1 {
+font-size: 23px;
+}
 
-  .bot-card-actions {
-    flex-direction: column;
-  }
+.bot-create-card {
+padding: 16px;
+border-radius: 10px;
+}
 
-  .bot-toggle-button,
-  .bot-delete-button {
-    width: 100%;
-  }
+.bot-form-grid {
+grid-template-columns: minmax(0, 1fr);
+gap: 14px;
+}
+
+.bot-create-button {
+width: 100%;
+margin-top: 16px;
+}
+
+.bot-card {
+padding: 16px;
+}
+
+.bot-card-info {
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 16px 12px;
+}
+
+.bot-card-actions {
+gap: 8px;
+}
+
+.bot-toggle-button,
+.bot-delete-button {
+min-height: 40px;
+padding: 0 10px;
+}
+}
+
+/* ============================================================
+RESPONSIVE: VERY SMALL PHONES
+============================================================ */
+
+@media (max-width: 380px) {
+.bot-card-header {
+flex-direction: column;
+gap: 10px;
+}
+
+.bot-card-actions {
+flex-direction: column;
+}
+
+.bot-toggle-button,
+.bot-delete-button {
+width: 100%;
+}
 }

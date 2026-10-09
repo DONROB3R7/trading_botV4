@@ -1,14 +1,6 @@
 const tradeLifecycle =
   require("../lifecycle/tradeLifecycle");
 
-// ============================================================
-// PYRAMID DISTANCE
-// ============================================================
-
-// Hard-coded for now.
-// Later we can move this into bot configuration.
-const PYRAMID_DISTANCE_REQUIRED = 0.01; // 1%
-
 class BotEntry {
   constructor() {
     console.log("[BotEntry] Initialized");
@@ -112,13 +104,20 @@ class BotEntry {
     positions,
     tradeNumber,
   }) {
-    // Entry #1 is ALWAYS allowed.
+    // ==========================================================
+    // ENTRY #1 IS ALWAYS ALLOWED
+    // ==========================================================
+
     if (tradeNumber === 1) {
       return {
         allowed: true,
         reason: "FIRST_ENTRY",
       };
     }
+
+    // ==========================================================
+    // POSITION SERVICE CHECK
+    // ==========================================================
 
     if (!positions) {
       console.error(
@@ -131,9 +130,9 @@ class BotEntry {
       };
     }
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // GET LIVE WEEX POSITION
-    // ----------------------------------------------------------
+    // ==========================================================
 
     let positionData;
 
@@ -168,9 +167,9 @@ class BotEntry {
       };
     }
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // AVG ENTRY PRICE
-    // ----------------------------------------------------------
+    // ==========================================================
 
     const averageEntryPrice =
       this.getPositionNumber(position, [
@@ -181,9 +180,9 @@ class BotEntry {
         "openPrice",
       ]);
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // CURRENT / MARK PRICE
-    // ----------------------------------------------------------
+    // ==========================================================
 
     const currentPrice =
       this.getPositionNumber(position, [
@@ -199,7 +198,10 @@ class BotEntry {
       !currentPrice
     ) {
       console.error(
-        `[BotEntry] PYRAMID DISTANCE ERROR | Bot=${bot.id} | AvgEntry=${averageEntryPrice} | Current=${currentPrice}`
+        `[BotEntry] PYRAMID DISTANCE ERROR | ` +
+        `Bot=${bot.id} | ` +
+        `AvgEntry=${averageEntryPrice} | ` +
+        `Current=${currentPrice}`
       );
 
       return {
@@ -208,9 +210,9 @@ class BotEntry {
       };
     }
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // CALCULATE ADVERSE DISTANCE
-    // ----------------------------------------------------------
+    // ==========================================================
 
     let adverseDistance = 0;
 
@@ -220,6 +222,7 @@ class BotEntry {
     ) {
       // LONG:
       // We want price BELOW average entry.
+
       adverseDistance =
         (averageEntryPrice - currentPrice) /
         averageEntryPrice;
@@ -231,22 +234,61 @@ class BotEntry {
     ) {
       // SHORT:
       // We want price ABOVE average entry.
+
       adverseDistance =
         (currentPrice - averageEntryPrice) /
         averageEntryPrice;
     }
 
-    // Prevent negative distance from passing.
+    // ==========================================================
+    // PREVENT NEGATIVE DISTANCE
+    // ==========================================================
+
     adverseDistance = Math.max(
       0,
       adverseDistance
     );
 
+    // ==========================================================
+    // BOT PYRAMID DISTANCE
+    //
+    // Bot stores percentage:
+    //
+    // 1    = 1%
+    // 0.5  = 0.5%
+    // 2    = 2%
+    // 4    = 4%
+    //
+    // Internal calculation uses decimal:
+    //
+    // 1% = 0.01
+    // 2% = 0.02
+    // 4% = 0.04
+    // ==========================================================
+
+    const configuredDistance =
+      Number(
+        bot.pyramidDistance
+      );
+
     const required =
-      PYRAMID_DISTANCE_REQUIRED;
+      Number.isFinite(
+        configuredDistance
+      ) &&
+      configuredDistance > 0
+        ? configuredDistance / 100
+        : 0.01;
+
+    // ==========================================================
+    // FINAL CHECK
+    // ==========================================================
 
     const allowed =
       adverseDistance >= required;
+
+    // ==========================================================
+    // DEBUG LOG
+    // ==========================================================
 
     console.log(
       `[BotEntry] PYRAMID DISTANCE | ` +
@@ -255,9 +297,14 @@ class BotEntry {
       `AvgEntry=${averageEntryPrice} | ` +
       `Current=${currentPrice} | ` +
       `AdverseDistance=${(adverseDistance * 100).toFixed(2)}% | ` +
+      `Configured=${Number.isFinite(configuredDistance) ? configuredDistance : 1}% | ` +
       `Required=${(required * 100).toFixed(2)}% | ` +
       `Allowed=${allowed}`
     );
+
+    // ==========================================================
+    // DISTANCE FAILED
+    // ==========================================================
 
     if (!allowed) {
       return {
@@ -269,6 +316,10 @@ class BotEntry {
         requiredDistance: required,
       };
     }
+
+    // ==========================================================
+    // DISTANCE PASSED
+    // ==========================================================
 
     return {
       allowed: true,
@@ -373,21 +424,21 @@ class BotEntry {
       `Bot=${bot.id} | ` +
       `Symbol=${bot.symbol} | ` +
       `Direction=${bot.direction} | ` +
-      `Trade=${tradeNumber}/${bot.maxPositions}`
+      `Trade=${tradeNumber}/${bot.maxPositions} | ` +
+      `PyramidDistance=${bot.pyramidDistance ?? 1}%`
     );
 
     // ==========================================================
     // PYRAMID DISTANCE CHECK
     //
-    // IMPORTANT:
-    // This happens AFTER:
+    // AFTER:
     // Price Model
     //       ↓
     // Orderbook
     //       ↓
     // Entry signal
     //
-    // But BEFORE:
+    // BEFORE:
     // WEEX order
     // ==========================================================
 
@@ -414,21 +465,27 @@ class BotEntry {
           result: {
             reason:
               distanceCheck.reason,
+
             tradeNumber,
+
             direction:
               bot.direction,
+
             averageEntryPrice:
               distanceCheck.averageEntryPrice ??
               null,
+
             currentPrice:
               distanceCheck.currentPrice ??
               null,
+
             adverseDistance:
               distanceCheck.adverseDistance ??
               null,
+
             requiredDistance:
               distanceCheck.requiredDistance ??
-              PYRAMID_DISTANCE_REQUIRED,
+              0.01,
           },
         };
       }
@@ -450,22 +507,35 @@ class BotEntry {
 
     const trade = {
       tradeNumber,
-      direction: bot.direction,
+
+      direction:
+        bot.direction,
+
       openedAt:
         new Date().toISOString(),
+
       openResult,
-      stopLoss: bot.stopLoss,
-      takeProfit: bot.takeProfit,
-      status: "OPEN",
+
+      stopLoss:
+        bot.stopLoss,
+
+      takeProfit:
+        bot.takeProfit,
+
+      status:
+        "OPEN",
     };
 
     // ==========================================================
     // UPDATE BOT STATE
     // ==========================================================
 
-    bot.trades.push(trade);
+    bot.trades.push(
+      trade
+    );
 
-    bot.currentPositionCount += 1;
+    bot.currentPositionCount +=
+      1;
 
     // ==========================================================
     // START TRADE LIFECYCLE
@@ -474,7 +544,9 @@ class BotEntry {
     // ==========================================================
 
     if (isFirstEntry) {
-      tradeLifecycle.start(bot);
+      tradeLifecycle.start(
+        bot
+      );
     }
 
     // ==========================================================
@@ -514,4 +586,5 @@ class BotEntry {
   }
 }
 
-module.exports = BotEntry;
+module.exports =
+  BotEntry;
