@@ -1,5 +1,5 @@
-const express =
-  require("express");
+
+const express =  require("express");
 
 const router =
   express.Router();
@@ -114,13 +114,9 @@ const combinedEntryModelManager =
 
 const botModels =
   new BotModels({
-
     bots,
-
     priceModelManager,
-
     combinedEntryModelManager,
-
   });
 
 // ============================================================
@@ -134,7 +130,6 @@ const botModels =
 router.get(
   "/:botId/price-model",
   (req, res) => {
-
     const result =
       botModels.getPriceModel(
         req.params.botId
@@ -143,7 +138,6 @@ router.get(
     return res
       .status(result.status)
       .json(result.body);
-
   }
 );
 
@@ -154,7 +148,6 @@ router.get(
 router.get(
   "/:botId/combined-entry-model",
   (req, res) => {
-
     const result =
       botModels.getCombinedEntryModel(
         req.params.botId
@@ -163,7 +156,6 @@ router.get(
     return res
       .status(result.status)
       .json(result.body);
-
   }
 );
 
@@ -174,7 +166,6 @@ router.get(
 router.post(
   "/:botId/combined-entry-model/start",
   async (req, res) => {
-
     const result =
       await botModels.startCombinedEntryModel(
         req.params.botId
@@ -183,7 +174,6 @@ router.post(
     return res
       .status(result.status)
       .json(result.body);
-
   }
 );
 
@@ -194,7 +184,6 @@ router.post(
 router.post(
   "/:botId/combined-entry-model/stop",
   async (req, res) => {
-
     const result =
       await botModels.stopCombinedEntryModel(
         req.params.botId
@@ -203,7 +192,6 @@ router.post(
     return res
       .status(result.status)
       .json(result.body);
-
   }
 );
 
@@ -214,7 +202,6 @@ router.post(
 router.post(
   "/:botId/price-model/start",
   async (req, res) => {
-
     const result =
       await botModels.startPriceModel(
         req.params.botId
@@ -223,7 +210,6 @@ router.post(
     return res
       .status(result.status)
       .json(result.body);
-
   }
 );
 
@@ -234,7 +220,6 @@ router.post(
 router.post(
   "/:botId/price-model/stop",
   (req, res) => {
-
     const result =
       botModels.stopPriceModel(
         req.params.botId
@@ -243,7 +228,6 @@ router.post(
     return res
       .status(result.status)
       .json(result.body);
-
   }
 );
 
@@ -254,7 +238,6 @@ router.post(
 router.post(
   "/:botId/price-model/bias",
   (req, res) => {
-
     const result =
       botModels.setPriceModelBias(
         req.params.botId,
@@ -264,7 +247,6 @@ router.post(
     return res
       .status(result.status)
       .json(result.body);
-
   }
 );
 
@@ -275,7 +257,6 @@ router.post(
 router.post(
   "/:botId/price-model/scan",
   async (req, res) => {
-
     const result =
       await botModels.scanPriceModel(
         req.params.botId
@@ -284,7 +265,6 @@ router.post(
     return res
       .status(result.status)
       .json(result.body);
-
   }
 );
 
@@ -303,28 +283,20 @@ module.exports =
     // ========================================================
 
     tradeLifecycle.configure({
-
       orders,
-
       positions,
-
     });
 
     // ========================================================
     // COMBINED ENTRY EXECUTION CONFIG
     // ========================================================
 
-          botModels.configureEntryExecution({
-
-            botEntry,
-
-            orders,
-
-            positions,
-
-            advanced,
-
-          });
+    botModels.configureEntryExecution({
+      botEntry,
+      orders,
+      positions,
+      advanced,
+    });
 
     // ========================================================
     // BOT LOOKUP FOR TRADE LIFECYCLE
@@ -332,14 +304,12 @@ module.exports =
 
     tradeLifecycle.configureBotLookup(
       (botId) => {
-
         return (
           bots.find(
             (bot) =>
               bot.id === botId
           ) || null
         );
-
       }
     );
 
@@ -350,15 +320,11 @@ module.exports =
     router.get(
       "/",
       (req, res) => {
-
         console.log(
           `[Bot] GET /api/bots | Count=${bots.length}`
         );
 
-        return res.json(
-          bots
-        );
-
+        return res.json(bots);
       }
     );
 
@@ -369,9 +335,7 @@ module.exports =
     router.post(
       "/",
       async (req, res) => {
-
         try {
-
           const body =
             req.body || {};
 
@@ -391,17 +355,10 @@ module.exports =
             ).toUpperCase();
 
           if (!cleanSymbol) {
-
             return res.status(400).json({
-
-              success:
-                false,
-
-              error:
-                "Symbol is required",
-
+              success: false,
+              error: "Symbol is required",
             });
-
           }
 
           const botDirection =
@@ -428,7 +385,7 @@ module.exports =
             );
 
           // ==================================================
-          // PYRAMID
+          // PYRAMID POSITIONS
           // ==================================================
 
           const cleanPyramidPositions =
@@ -444,7 +401,31 @@ module.exports =
                 )
               )
             );
-            
+
+          // ==================================================
+          // PYRAMID POSITION MULTIPLIER
+          // ==================================================
+
+          const allowedMultipliers = [
+            1,
+            1.5,
+            2,
+            2.5,
+            3,
+          ];
+
+          const requestedMultiplier =
+            Number(
+              body.pyramidPositionMultiplier ?? 1
+            );
+
+          const cleanPyramidPositionMultiplier =
+            allowedMultipliers.includes(
+              requestedMultiplier
+            )
+              ? requestedMultiplier
+              : 1;
+
           // ==================================================
           // PYRAMID DISTANCE
           // ==================================================
@@ -461,18 +442,12 @@ module.exports =
             ) ||
             cleanPyramidDistance <= 0
           ) {
-
             return res.status(400).json({
-
-              success:
-                false,
-
+              success: false,
               error:
                 "Pyramid Distance must be greater than 0",
-
             });
-
-          }  
+          }
 
           // ==================================================
           // TRIGGER LINE
@@ -498,25 +473,18 @@ module.exports =
               triggerLinePrice <= 0
             )
           ) {
-
             return res.status(400).json({
-
-              success:
-                false,
-
+              success: false,
               error:
                 "Trigger Line is enabled but trigger price is invalid",
-
             });
-
           }
 
           // ==================================================
           // INITIAL TRIGGER STATE
           // ==================================================
 
-          let initialTriggerPrice =
-            null;
+          let initialTriggerPrice = null;
 
           let initialTriggerState =
             advanced.cleanTriggerState(
@@ -524,25 +492,19 @@ module.exports =
               triggerLineEnabled
             );
 
-          let triggerArmedAt =
-            null;
+          let triggerArmedAt = null;
 
-          let triggerArmedPrice =
-            null;
+          let triggerArmedPrice = null;
 
           // ==================================================
           // TRIGGER ENABLED
           // ==================================================
 
-          if (
-            triggerLineEnabled
-          ) {
-
+          if (triggerLineEnabled) {
             initialTriggerState =
               "NEUTRAL";
 
             try {
-
               initialTriggerPrice =
                 await advanced.getCurrentMarketPrice(
                   cleanSymbol
@@ -558,7 +520,6 @@ module.exports =
                 initialTriggerPrice ===
                 triggerLinePrice
               ) {
-
                 initialTriggerState =
                   "ARMED";
 
@@ -572,11 +533,8 @@ module.exports =
                   `[Trigger:${cleanSymbol}] ` +
                   `ARMED IMMEDIATELY AT CREATION`
                 );
-
               }
-
             } catch (error) {
-
               console.error(
                 `[Trigger:${cleanSymbol}] ` +
                 `Could not get current market price:`,
@@ -584,19 +542,12 @@ module.exports =
               );
 
               return res.status(502).json({
-
-                success:
-                  false,
-
+                success: false,
                 error:
                   `Could not get current market price for ${cleanSymbol}: ${error.message}`,
-
               });
-
             }
-
           } else {
-
             initialTriggerState =
               "ARMED";
 
@@ -604,7 +555,6 @@ module.exports =
               `[Trigger:${cleanSymbol}] ` +
               `Trigger Line disabled | Bot starts ARMED`
             );
-
           }
 
           // ==================================================
@@ -613,7 +563,6 @@ module.exports =
 
           const bot =
             botModels.createBot({
-
               id:
                 `bot_${Date.now()}`,
 
@@ -638,8 +587,12 @@ module.exports =
               pyramidPositions:
                 cleanPyramidPositions,
 
+              // NEW: SAVE THE SELECTED MULTIPLIER
+              pyramidPositionMultiplier:
+                cleanPyramidPositionMultiplier,
+
               pyramidDistance:
-                cleanPyramidDistance,  
+                cleanPyramidDistance,
 
               triggerLineEnabled,
 
@@ -661,27 +614,23 @@ module.exports =
               tradeLifecycle,
 
               entryModelEngine,
-
             });
 
           // ==================================================
           // STORE BOT
           // ==================================================
 
-          bots.push(
-            bot
-          );
+          bots.push(bot);
 
           // ==================================================
           // PRICE MODEL
           // ==================================================
 
-          const priceModel =
-            priceModelManager.getOrCreate(
-              bot.id,
-              bot.symbol,
-              bot.direction
-            );
+          priceModelManager.getOrCreate(
+            bot.id,
+            bot.symbol,
+            bot.direction
+          );
 
           console.log(
             `[Bot:${bot.symbol}] ` +
@@ -694,12 +643,11 @@ module.exports =
           // COMBINED ENTRY MODEL
           // ==================================================
 
-          const combinedEntryModel =
-            combinedEntryModelManager.getOrCreate(
-              bot.id,
-              bot.symbol,
-              bot.direction
-            );
+          combinedEntryModelManager.getOrCreate(
+            bot.id,
+            bot.symbol,
+            bot.direction
+          );
 
           bot.combinedEntryModelId =
             bot.id;
@@ -719,13 +667,11 @@ module.exports =
             tradeCycleManager.create(
               bot.id,
               {
-
                 direction:
                   bot.direction,
 
                 position:
                   null,
-
               }
             );
 
@@ -746,7 +692,8 @@ module.exports =
             `[Bot] Created ${bot.name} | ` +
             `${bot.symbol} | ` +
             `${bot.direction} | ` +
-            `Pyramid=${bot.pyramidPositions}`
+            `Pyramid=${bot.pyramidPositions} | ` +
+            `Multiplier=${bot.pyramidPositionMultiplier}`
           );
 
           console.log(
@@ -762,16 +709,10 @@ module.exports =
           // ==================================================
 
           if (
-            bot.triggerLineEnabled ===
-              true &&
-            bot.triggerState ===
-              "NEUTRAL"
+            bot.triggerLineEnabled === true &&
+            bot.triggerState === "NEUTRAL"
           ) {
-
-            advanced.startTriggerMonitor(
-              bot
-            );
-
+            advanced.startTriggerMonitor(bot);
           }
 
           // ==================================================
@@ -779,33 +720,21 @@ module.exports =
           // ==================================================
 
           return res.status(201).json({
-
-            success:
-              true,
-
+            success: true,
             bot,
-
           });
 
         } catch (error) {
-
           console.error(
             "[Bot] Create error:",
             error
           );
 
           return res.status(500).json({
-
-            success:
-              false,
-
-            error:
-              error.message,
-
+            success: false,
+            error: error.message,
           });
-
         }
-
       }
     );
 
@@ -816,68 +745,44 @@ module.exports =
     router.post(
       "/:id/enter",
       async (req, res) => {
-
         const bot =
           bots.find(
             (item) =>
-              item.id ===
-              req.params.id
+              item.id === req.params.id
           );
 
         try {
-
           const result =
             await botEntry.enter({
-
               bot,
-
               orders,
-
               positions,
-
               advanced,
-
             });
 
           if (!result.ok) {
-
             return res
               .status(result.status)
               .json({
-
-                success:
-                  false,
-
-                error:
-                  result.error,
-
+                success: false,
+                error: result.error,
               });
-
           }
 
           return res.json({
-
-            success:
-              true,
-
+            success: true,
             bot,
-
             trade:
               result.result.trade,
-
             openResult:
               result.result.openResult,
-
             triggerState:
               bot.triggerState,
-
             triggerLinePrice:
               bot.triggerLinePrice,
-
           });
 
         } catch (error) {
-
           console.error(
             `[Bot:${bot?.symbol || req.params.id}] ` +
             `ENTER ERROR:`,
@@ -885,17 +790,10 @@ module.exports =
           );
 
           return res.status(500).json({
-
-            success:
-              false,
-
-            error:
-              error.message,
-
+            success: false,
+            error: error.message,
           });
-
         }
-
       }
     );
 
@@ -906,78 +804,51 @@ module.exports =
     router.post(
       "/:id/close",
       async (req, res) => {
-
         const bot =
           bots.find(
             (item) =>
-              item.id ===
-              req.params.id
+              item.id === req.params.id
           );
 
         if (!bot) {
-
           return res.status(404).json({
-
-            success:
-              false,
-
-            error:
-              "Bot not found",
-
+            success: false,
+            error: "Bot not found",
           });
-
         }
 
         try {
-
-          // =================================================
           // CANCEL TP/SL PROTECTION TIMER
-          // =================================================
 
-          advanced.cancelProtectionTimer(
-            bot
-          );
+          advanced.cancelProtectionTimer(bot);
 
-          // =================================================
           // CLOSE POSITION
-          // =================================================
 
           const closeResult =
             await orders.closeTestPosition(
               bot.symbol
             );
 
-          // =================================================
           // CANCEL TRACKED TP
-          // =================================================
 
           if (
             bot.currentTpOrderId &&
-            typeof orders.cancelTpOrder ===
-              "function"
+            typeof orders.cancelTpOrder === "function"
           ) {
-
             try {
-
               await orders.cancelTpOrder(
                 bot.currentTpOrderId
               );
-
             } catch (error) {
-
               console.error(
                 `[Bot:${bot.symbol}] ` +
                 `TP cancel failed:`,
                 error.message
               );
-
             }
-
           }
 
-          // =================================================
           // LIFECYCLE FINALIZES AFTER FLAT
-          // =================================================
 
           console.log(
             `[Bot:${bot.symbol}] ` +
@@ -987,21 +858,14 @@ module.exports =
           );
 
           return res.json({
-
-            success:
-              true,
-
+            success: true,
             closeResult,
-
             bot,
-
             triggerState:
               bot.triggerState,
-
           });
 
         } catch (error) {
-
           console.error(
             `[Bot:${bot.symbol}] ` +
             `CLOSE ERROR:`,
@@ -1009,17 +873,10 @@ module.exports =
           );
 
           return res.status(500).json({
-
-            success:
-              false,
-
-            error:
-              error.message,
-
+            success: false,
+            error: error.message,
           });
-
         }
-
       }
     );
 
@@ -1030,40 +887,25 @@ module.exports =
     router.post(
       "/:id/pause",
       (req, res) => {
-
         const bot =
           bots.find(
             (item) =>
-              item.id ===
-              req.params.id
+              item.id === req.params.id
           );
 
         if (!bot) {
-
           return res.status(404).json({
-
-            success:
-              false,
-
-            error:
-              "Bot not found",
-
+            success: false,
+            error: "Bot not found",
           });
-
         }
 
-        bot.status =
-          "PAUSED";
+        bot.status = "PAUSED";
 
         return res.json({
-
-          success:
-            true,
-
+          success: true,
           bot,
-
         });
-
       }
     );
 
@@ -1074,108 +916,58 @@ module.exports =
     router.post(
       "/:id/resume",
       (req, res) => {
-
         const bot =
           bots.find(
             (item) =>
-              item.id ===
-              req.params.id
+              item.id === req.params.id
           );
 
         if (!bot) {
-
           return res.status(404).json({
-
-            success:
-              false,
-
-            error:
-              "Bot not found",
-
+            success: false,
+            error: "Bot not found",
           });
-
         }
 
-        bot.status =
-          "ACTIVE";
+        bot.status = "ACTIVE";
 
-        // ==================================================
         // RESTART TRIGGER MONITOR
-        // ==================================================
 
         if (
-          bot.triggerLineEnabled ===
-            true &&
-          bot.triggerState ===
-            "NEUTRAL"
+          bot.triggerLineEnabled === true &&
+          bot.triggerState === "NEUTRAL"
         ) {
-
-          advanced.startTriggerMonitor(
-            bot
-          );
-
+          advanced.startTriggerMonitor(bot);
         }
 
         return res.json({
-
-          success:
-            true,
-
+          success: true,
           bot,
-
         });
-
       }
     );
 
     // ========================================================
     // MASTER ENTRY MODEL START
     // ========================================================
-    //
-    // BOT MANAGEMENT START
-    //
-    // This is now the ONE master START command.
-    //
-    // It starts:
-    //
-    //   1. Price Model
-    //   2. Combined Entry Model
-    //
-    // React keeps using:
-    //
-    //   POST /:id/entry-model/start
-    //
-    // but the server now routes that command
-    // into the new master engine.
-    //
 
     router.post(
       "/:id/entry-model/start",
       async (req, res) => {
-
         const bot =
           bots.find(
             (item) =>
-              item.id ===
-              req.params.id
+              item.id === req.params.id
           );
 
         if (!bot) {
-
           return res.status(404).json({
-
-            success:
-              false,
-
-            error:
-              "Bot not found",
-
+            success: false,
+            error: "Bot not found",
           });
-
         }
 
         try {
-
           const result =
             await botModels.startCombinedEntryModel(
               bot.id
@@ -1192,7 +984,6 @@ module.exports =
             .json(result.body);
 
         } catch (error) {
-
           console.error(
             `[Bot:${bot.symbol}] ` +
             `MASTER START ERROR:`,
@@ -1200,61 +991,34 @@ module.exports =
           );
 
           return res.status(500).json({
-
-            success:
-              false,
-
-            error:
-              error.message,
-
+            success: false,
+            error: error.message,
           });
-
         }
-
       }
     );
 
     // ========================================================
     // MASTER ENTRY MODEL STOP
     // ========================================================
-    //
-    // BOT MANAGEMENT STOP
-    //
-    // This is now the ONE master STOP command.
-    //
-    // It stops:
-    //
-    //   1. Combined Entry Model
-    //   2. Price Model
-    //
 
     router.post(
       "/:id/entry-model/stop",
       async (req, res) => {
-
         const bot =
           bots.find(
             (item) =>
-              item.id ===
-              req.params.id
+              item.id === req.params.id
           );
 
         if (!bot) {
-
           return res.status(404).json({
-
-            success:
-              false,
-
-            error:
-              "Bot not found",
-
+            success: false,
+            error: "Bot not found",
           });
-
         }
 
         try {
-
           const result =
             await botModels.stopCombinedEntryModel(
               bot.id
@@ -1271,7 +1035,6 @@ module.exports =
             .json(result.body);
 
         } catch (error) {
-
           console.error(
             `[Bot:${bot.symbol}] ` +
             `MASTER STOP ERROR:`,
@@ -1279,17 +1042,10 @@ module.exports =
           );
 
           return res.status(500).json({
-
-            success:
-              false,
-
-            error:
-              error.message,
-
+            success: false,
+            error: error.message,
           });
-
         }
-
       }
     );
 
@@ -1300,120 +1056,76 @@ module.exports =
     router.delete(
       "/:id",
       (req, res) => {
-
         const index =
           bots.findIndex(
             (item) =>
-              item.id ===
-              req.params.id
+              item.id === req.params.id
           );
 
         if (index === -1) {
-
           return res.status(404).json({
-
-            success:
-              false,
-
-            error:
-              "Bot not found",
-
+            success: false,
+            error: "Bot not found",
           });
-
         }
 
         const bot =
           bots[index];
 
-        // ==================================================
         // STOP ALL ADVANCED TIMERS
-        // ==================================================
 
-        advanced.stopAll(
-          bot
-        );
+        advanced.stopAll(bot);
 
-        // ==================================================
         // STOP TRADE LIFECYCLE
-        // ==================================================
 
-        tradeLifecycle.stop(
-          bot.id
-        );
+        tradeLifecycle.stop(bot.id);
 
-        // ==================================================
         // STOP OLD ENTRY MODEL ENGINE
-        // ==================================================
 
-        entryModelEngine.stopEngine(
-          bot.id
-        );
+        entryModelEngine.stopEngine(bot.id);
 
-        // ==================================================
         // STOP COMBINED ENTRY MODEL
-        // ==================================================
 
         const combinedEntryModel =
           combinedEntryModelManager.get(
             bot.id
           );
 
-        if (
-          combinedEntryModel
-        ) {
-
+        if (combinedEntryModel) {
           combinedEntryModel.stop();
-
         }
 
         combinedEntryModelManager.remove(
           bot.id
         );
 
-        // ==================================================
         // STOP PRICE MODEL
-        // ==================================================
 
         const priceModel =
           priceModelManager.get(
             bot.id
           );
 
-        if (
-          priceModel
-        ) {
-
+        if (priceModel) {
           priceModel.stop();
-
         }
 
         priceModelManager.remove(
           bot.id
         );
 
-        // ==================================================
         // DELETE BOT
-        // ==================================================
 
-        bots.splice(
-          index,
-          1
-        );
+        bots.splice(index, 1);
 
         console.log(
           `[Bot] Deleted ${bot.name} | ${bot.symbol}`
         );
 
         return res.json({
-
-          success:
-            true,
-
-          deletedBotId:
-            bot.id,
-
+          success: true,
+          deletedBotId: bot.id,
         });
-
       }
     );
 
@@ -1422,17 +1134,13 @@ module.exports =
     // ========================================================
 
     router.getBot =
-      (
-        botId
-      ) => {
-
+      (botId) => {
         return (
           bots.find(
             (bot) =>
               bot.id === botId
           ) || null
         );
-
       };
 
     // ========================================================
@@ -1440,5 +1148,5 @@ module.exports =
     // ========================================================
 
     return router;
-
   };
+

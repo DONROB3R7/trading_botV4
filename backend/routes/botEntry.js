@@ -495,10 +495,15 @@ class BotEntry {
     // OPEN WEEX POSITION
     // ==========================================================
 
-    const openResult =
+      const openResult =
       await orders.openTestPosition(
         bot.symbol,
-        bot.direction
+        bot.direction,
+        {
+          tradeNumber,
+          pyramidPositionMultiplier:
+            bot.pyramidPositionMultiplier ?? 1,
+        }
       );
 
     // ==========================================================

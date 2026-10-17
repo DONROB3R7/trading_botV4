@@ -6,18 +6,12 @@ class OrderService {
       client ||
       new WeexClient();
 
-    // ==========================================================
     // DEFAULT TEST SETTINGS
-    // ==========================================================
-
     this.defaultMargin = 1;
     this.defaultLeverage = "10";
     this.defaultMarginType = "ISOLATED";
 
-    // ==========================================================
     // TP TRACKING
-    // ==========================================================
-
     this.activeTpOrderIds = new Map();
   }
 
@@ -27,54 +21,38 @@ class OrderService {
 
   async getSymbolInfo(symbol) {
     const normalizedSymbol =
-      String(symbol || "")
-        .toUpperCase()
-        .trim();
+      String(symbol || "").toUpperCase().trim();
 
     if (!normalizedSymbol) {
-      throw new Error(
-        "Symbol is required"
-      );
+      throw new Error("Symbol is required");
     }
 
     console.log(
       `[TEST] GET SYMBOL INFO | ${normalizedSymbol}`
     );
 
-    const result =
-      await this.client.get(
-        "/capi/v3/market/exchangeInfo",
-        {
-          symbol:
-            normalizedSymbol,
-        },
-        false
-      );
+    const result = await this.client.get(
+      "/capi/v3/market/exchangeInfo",
+      { symbol: normalizedSymbol },
+      false
+    );
 
-    const data =
-      result?.data;
+    const data = result?.data;
 
     const symbols =
       Array.isArray(data)
         ? data
-        : Array.isArray(
-            data?.symbols
-          )
+        : Array.isArray(data?.symbols)
           ? data.symbols
-          : Array.isArray(
-              data?.data
-            )
+          : Array.isArray(data?.data)
             ? data.data
             : [];
 
-    const symbolInfo =
-      symbols.find(
-        (item) =>
-          String(
-            item.symbol || ""
-          ).toUpperCase() ===
-          normalizedSymbol
-      );
+    const symbolInfo = symbols.find(
+      (item) =>
+        String(item.symbol || "").toUpperCase() ===
+        normalizedSymbol
+    );
 
     if (!symbolInfo) {
       throw new Error(
@@ -85,14 +63,7 @@ class OrderService {
     console.log(
       `[TEST] SYMBOL INFO | ${normalizedSymbol}`
     );
-
-    console.log(
-      JSON.stringify(
-        symbolInfo,
-        null,
-        2
-      )
-    );
+    console.log(JSON.stringify(symbolInfo, null, 2));
 
     return symbolInfo;
   }
@@ -103,26 +74,14 @@ class OrderService {
 
   async getPricePrecision(symbol) {
     const normalizedSymbol =
-      String(symbol || "")
-        .toUpperCase()
-        .trim();
+      String(symbol || "").toUpperCase().trim();
 
     const symbolInfo =
-      await this.getSymbolInfo(
-        normalizedSymbol
-      );
+      await this.getSymbolInfo(normalizedSymbol);
 
-    const precision =
-      Number(
-        symbolInfo.pricePrecision
-      );
+    const precision = Number(symbolInfo.pricePrecision);
 
-    if (
-      !Number.isFinite(
-        precision
-      ) ||
-      precision < 0
-    ) {
+    if (!Number.isFinite(precision) || precision < 0) {
       throw new Error(
         `Invalid pricePrecision for ${normalizedSymbol}: ${symbolInfo.pricePrecision}`
       );
@@ -139,28 +98,14 @@ class OrderService {
   // ROUND PRICE TO WEEX PRECISION
   // ==========================================================
 
-  roundPrice(
-    price,
-    precision
-  ) {
-    const numericPrice =
-      Number(price);
+  roundPrice(price, precision) {
+    const numericPrice = Number(price);
 
-    if (
-      !Number.isFinite(
-        numericPrice
-      )
-    ) {
-      throw new Error(
-        `Invalid price: ${price}`
-      );
+    if (!Number.isFinite(numericPrice)) {
+      throw new Error(`Invalid price: ${price}`);
     }
 
-    return Number(
-      numericPrice.toFixed(
-        precision
-      )
-    );
+    return Number(numericPrice.toFixed(precision));
   }
 
   // ==========================================================
@@ -169,47 +114,32 @@ class OrderService {
 
   async getSymbolPrice(symbol) {
     const normalizedSymbol =
-      String(symbol || "")
-        .toUpperCase()
-        .trim();
+      String(symbol || "").toUpperCase().trim();
 
     if (!normalizedSymbol) {
-      throw new Error(
-        "Symbol is required"
-      );
+      throw new Error("Symbol is required");
     }
 
     console.log(
       `[TEST] GET MARK PRICE | ${normalizedSymbol}`
     );
 
-    const result =
-      await this.client.get(
-        "/capi/v3/market/symbolPrice",
-        {
-          symbol:
-            normalizedSymbol,
+    const result = await this.client.get(
+      "/capi/v3/market/symbolPrice",
+      {
+        symbol: normalizedSymbol,
+        priceType: "MARK",
+      },
+      false
+    );
 
-          priceType:
-            "MARK",
-        },
-        false
-      );
+    const data = result?.data;
 
-    const data =
-      result?.data;
+    const price = Number(
+      data?.price ?? data?.markPrice ?? 0
+    );
 
-    const price =
-      Number(
-        data?.price ??
-        data?.markPrice ??
-        0
-      );
-
-    if (
-      !Number.isFinite(price) ||
-      price <= 0
-    ) {
+    if (!Number.isFinite(price) || price <= 0) {
       throw new Error(
         `Could not determine current price for ${normalizedSymbol}`
       );
@@ -226,50 +156,62 @@ class OrderService {
   // CALCULATE ORDER QUANTITY
   // ==========================================================
 
-  async calculateOrderQuantity(
-    symbol
-  ) {
+  async calculateOrderQuantity(symbol, options = {}) {
     const normalizedSymbol =
-      String(symbol || "")
-        .toUpperCase()
-        .trim();
+      String(symbol || "").toUpperCase().trim();
+
+    // Entry number defaults to 1 for older/direct callers.
+    const tradeNumber = Math.max(
+      1,
+      Math.floor(Number(options.tradeNumber) || 1)
+    );
+
+    const allowedMultipliers = [1, 1.5, 2, 2.5, 3];
+
+    const requestedMultiplier = Number(
+      options.pyramidPositionMultiplier ?? 1
+    );
+
+    const pyramidPositionMultiplier =
+      allowedMultipliers.includes(requestedMultiplier)
+        ? requestedMultiplier
+        : 1;
+
+    // Entry #1 always uses multiplier 1.
+    // Entries #2 and #3 use the selected multiplier.
+    const effectiveMultiplier =
+      tradeNumber === 1
+        ? 1
+        : pyramidPositionMultiplier;
 
     const symbolInfo =
-      await this.getSymbolInfo(
-        normalizedSymbol
-      );
+      await this.getSymbolInfo(normalizedSymbol);
 
     const markPrice =
-      await this.getSymbolPrice(
-        normalizedSymbol
-      );
+      await this.getSymbolPrice(normalizedSymbol);
 
-    const leverage =
-      Number(
-        this.defaultLeverage
-      );
+    const leverage = Number(this.defaultLeverage);
 
-    if (
-      !Number.isFinite(leverage) ||
-      leverage <= 0
-    ) {
+    if (!Number.isFinite(leverage) || leverage <= 0) {
       throw new Error(
         `Invalid leverage: ${this.defaultLeverage}`
       );
     }
 
+    // Only the margin used for this entry is multiplied.
+    const baseMargin = this.defaultMargin;
+
+    const targetMargin =
+      baseMargin * effectiveMultiplier;
+
     const targetNotional =
-      this.defaultMargin *
-      leverage;
+      targetMargin * leverage;
 
     const rawQuantity =
-      targetNotional /
-      markPrice;
+      targetNotional / markPrice;
 
     if (
-      !Number.isFinite(
-        rawQuantity
-      ) ||
+      !Number.isFinite(rawQuantity) ||
       rawQuantity <= 0
     ) {
       throw new Error(
@@ -278,80 +220,46 @@ class OrderService {
     }
 
     const quantityPrecision =
-      Number.isFinite(
-        Number(
-          symbolInfo.quantityPrecision
-        )
-      )
-        ? Number(
-            symbolInfo.quantityPrecision
-          )
+      Number.isFinite(Number(symbolInfo.quantityPrecision))
+        ? Number(symbolInfo.quantityPrecision)
         : 8;
 
     let quantityStep;
 
-    if (
-      quantityPrecision >= 0
-    ) {
+    if (quantityPrecision >= 0) {
       quantityStep =
-        1 /
-        Math.pow(
-          10,
-          quantityPrecision
-        );
+        1 / Math.pow(10, quantityPrecision);
     } else {
       quantityStep =
-        Math.pow(
-          10,
-          Math.abs(
-            quantityPrecision
-          )
-        );
+        Math.pow(10, Math.abs(quantityPrecision));
     }
 
     let quantity =
-      Math.floor(
-        rawQuantity /
-        quantityStep
-      ) *
+      Math.floor(rawQuantity / quantityStep) *
       quantityStep;
 
     const minOrderSize =
-      Number(
-        symbolInfo.minOrderSize
-      );
+      Number(symbolInfo.minOrderSize);
 
     if (
-      Number.isFinite(
-        minOrderSize
-      ) &&
+      Number.isFinite(minOrderSize) &&
       minOrderSize > 0 &&
       quantity < minOrderSize
     ) {
-      quantity =
-        minOrderSize;
+      quantity = minOrderSize;
     }
 
-    if (
-      quantityStep > 0
-    ) {
+    if (quantityStep > 0) {
       quantity =
-        Math.ceil(
-          quantity /
-          quantityStep
-        ) *
+        Math.ceil(quantity / quantityStep) *
         quantityStep;
     }
 
-    if (
-      !Number.isFinite(
-        quantity
-      ) ||
-      quantity <= 0
-    ) {
+    if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new Error(
         `${normalizedSymbol} calculated quantity is invalid. ` +
-        `Margin=${this.defaultMargin} USDT | ` +
+        `Trade=${tradeNumber} | ` +
+        `Margin=${targetMargin} USDT | ` +
         `Leverage=${this.defaultLeverage}x | ` +
         `Price=${markPrice} | ` +
         `Precision=${quantityPrecision}`
@@ -359,14 +267,10 @@ class OrderService {
     }
 
     const maxOrderSize =
-      Number(
-        symbolInfo.maxOrderSize
-      );
+      Number(symbolInfo.maxOrderSize);
 
     if (
-      Number.isFinite(
-        maxOrderSize
-      ) &&
+      Number.isFinite(maxOrderSize) &&
       maxOrderSize > 0 &&
       quantity > maxOrderSize
     ) {
@@ -377,14 +281,10 @@ class OrderService {
     }
 
     const marketOpenLimitSize =
-      Number(
-        symbolInfo.marketOpenLimitSize
-      );
+      Number(symbolInfo.marketOpenLimitSize);
 
     if (
-      Number.isFinite(
-        marketOpenLimitSize
-      ) &&
+      Number.isFinite(marketOpenLimitSize) &&
       marketOpenLimitSize > 0 &&
       quantity > marketOpenLimitSize
     ) {
@@ -395,93 +295,71 @@ class OrderService {
     }
 
     const estimatedNotional =
-      markPrice *
-      quantity;
+      markPrice * quantity;
 
     const estimatedMargin =
-      estimatedNotional /
-      leverage;
+      estimatedNotional / leverage;
 
     console.log(
       "=========================================================="
     );
-
     console.log(
       `[TEST] ORDER SIZE CALCULATION | ${normalizedSymbol}`
     );
-
+    console.log(`[TEST] Trade Number=${tradeNumber}`);
     console.log(
-      `[TEST] Target Margin=${this.defaultMargin} USDT`
+      `[TEST] Selected Multiplier=${pyramidPositionMultiplier}x`
     );
-
+    console.log(
+      `[TEST] Effective Multiplier=${effectiveMultiplier}x`
+    );
+    console.log(
+      `[TEST] Base Margin=${baseMargin} USDT`
+    );
+    console.log(
+      `[TEST] Effective Target Margin=${targetMargin} USDT`
+    );
     console.log(
       `[TEST] Leverage=${this.defaultLeverage}x`
     );
-
     console.log(
       `[TEST] Target Notional=${targetNotional} USDT`
     );
-
-    console.log(
-      `[TEST] Mark Price=${markPrice}`
-    );
-
-    console.log(
-      `[TEST] Raw Quantity=${rawQuantity}`
-    );
-
+    console.log(`[TEST] Mark Price=${markPrice}`);
+    console.log(`[TEST] Raw Quantity=${rawQuantity}`);
     console.log(
       `[TEST] Quantity Precision=${quantityPrecision}`
     );
-
-    console.log(
-      `[TEST] Quantity Step=${quantityStep}`
-    );
-
+    console.log(`[TEST] Quantity Step=${quantityStep}`);
     console.log(
       `[TEST] Minimum Order Size=${minOrderSize || "none"}`
     );
-
-    console.log(
-      `[TEST] Final Quantity=${quantity}`
-    );
-
+    console.log(`[TEST] Final Quantity=${quantity}`);
     console.log(
       `[TEST] Estimated Notional=${estimatedNotional.toFixed(6)} USDT`
     );
-
     console.log(
       `[TEST] Estimated Margin=${estimatedMargin.toFixed(6)} USDT`
     );
-
     console.log(
       "=========================================================="
     );
 
     return {
-      quantity:
-        String(quantity),
-
-      numericQuantity:
-        quantity,
-
+      quantity: quantity.toFixed(quantityPrecision),
+      numericQuantity: quantity,
       markPrice,
-
       quantityPrecision,
-
       quantityStep,
-
       minOrderSize,
-
-      targetMargin:
-        this.defaultMargin,
-
+      tradeNumber,
+      pyramidPositionMultiplier,
+      effectiveMultiplier,
+      baseMargin,
+      targetMargin,
       targetNotional,
-
       estimatedNotional,
-
       estimatedMargin,
-
       symbolInfo,
     };
   }
@@ -492,9 +370,7 @@ class OrderService {
 
   async setLeverage(symbol) {
     const normalizedSymbol =
-      String(symbol)
-        .toUpperCase()
-        .trim();
+      String(symbol).toUpperCase().trim();
 
     console.log(
       `[TEST] Setting ${normalizedSymbol} isolated 10x...`
@@ -503,17 +379,10 @@ class OrderService {
     return this.client.post(
       "/capi/v3/account/leverage",
       {
-        symbol:
-          normalizedSymbol,
-
-        marginType:
-          this.defaultMarginType,
-
-        isolatedLongLeverage:
-          this.defaultLeverage,
-
-        isolatedShortLeverage:
-          this.defaultLeverage,
+        symbol: normalizedSymbol,
+        marginType: this.defaultMarginType,
+        isolatedLongLeverage: this.defaultLeverage,
+        isolatedShortLeverage: this.defaultLeverage,
       }
     );
   }
@@ -522,131 +391,78 @@ class OrderService {
   // OPEN POSITION
   // ==========================================================
 
-  async openTestPosition(
-    symbol,
-    direction
-  ) {
+  async openTestPosition(symbol, direction, options = {}) {
     const normalizedSymbol =
-      String(symbol || "")
-        .toUpperCase()
-        .trim();
+      String(symbol || "").toUpperCase().trim();
 
     const normalizedDirection =
-      String(direction || "")
-        .toUpperCase()
-        .trim();
+      String(direction || "").toUpperCase().trim();
 
     if (
-      normalizedDirection !==
-        "LONG" &&
-      normalizedDirection !==
-        "SHORT"
+      normalizedDirection !== "LONG" &&
+      normalizedDirection !== "SHORT"
     ) {
-      throw new Error(
-        "Direction must be LONG or SHORT"
-      );
+      throw new Error("Direction must be LONG or SHORT");
     }
 
-    await this.setLeverage(
-      normalizedSymbol
-    );
+    // Keep existing leverage setup.
+    await this.setLeverage(normalizedSymbol);
 
+    // Pass entry number and multiplier into sizing.
     const sizing =
       await this.calculateOrderQuantity(
-        normalizedSymbol
+        normalizedSymbol,
+        options
       );
 
-    const quantity =
-      sizing.quantity;
+    const quantity = sizing.quantity;
 
     const side =
-      normalizedDirection ===
-      "LONG"
+      normalizedDirection === "LONG"
         ? "BUY"
         : "SELL";
 
-    const positionSide =
-      normalizedDirection;
+    const positionSide = normalizedDirection;
 
     const clientOrderId =
       `bot_${normalizedSymbol.toLowerCase()}_${Date.now()}`;
 
     const body = {
-      symbol:
-        normalizedSymbol,
-
+      symbol: normalizedSymbol,
       side,
-
       positionSide,
-
-      type:
-        "MARKET",
-
+      type: "MARKET",
       quantity,
-
-      newClientOrderId:
-        clientOrderId,
+      newClientOrderId: clientOrderId,
     };
 
-    console.log(
-      "[TEST] MARKET ORDER BODY"
+    console.log("[TEST] MARKET ORDER BODY");
+    console.log(JSON.stringify(body, null, 2));
+
+    const result = await this.client.post(
+      "/capi/v3/order",
+      body
     );
 
-    console.log(
-      JSON.stringify(
-        body,
-        null,
-        2
-      )
-    );
-
-    const result =
-      await this.client.post(
-        "/capi/v3/order",
-        body
-      );
-
-    console.log(
-      "[TEST] MARKET ORDER RESPONSE"
-    );
-
-    console.log(
-      JSON.stringify(
-        result,
-        null,
-        2
-      )
-    );
+    console.log("[TEST] MARKET ORDER RESPONSE");
+    console.log(JSON.stringify(result, null, 2));
 
     return {
       ...result,
-
-      symbol:
-        normalizedSymbol,
-
-      direction:
-        normalizedDirection,
-
+      symbol: normalizedSymbol,
+      direction: normalizedDirection,
       side,
-
       positionSide,
-
       quantity,
-
-      targetMargin:
-        sizing.targetMargin,
-
-      targetNotional:
-        sizing.targetNotional,
-
-      estimatedNotional:
-        sizing.estimatedNotional,
-
-      estimatedMargin:
-        sizing.estimatedMargin,
-
-      markPrice:
-        sizing.markPrice,
+      tradeNumber: sizing.tradeNumber,
+      pyramidPositionMultiplier:
+        sizing.pyramidPositionMultiplier,
+      effectiveMultiplier: sizing.effectiveMultiplier,
+      targetMargin: sizing.targetMargin,
+      targetNotional: sizing.targetNotional,
+      estimatedNotional: sizing.estimatedNotional,
+      estimatedMargin: sizing.estimatedMargin,
+      markPrice: sizing.markPrice,
     };
   }
 
@@ -661,44 +477,26 @@ class OrderService {
     limit = 100
   ) {
     const normalizedSymbol =
-      String(symbol || "")
-        .toUpperCase()
-        .trim();
+      String(symbol || "").toUpperCase().trim();
 
     if (!normalizedSymbol) {
-      throw new Error(
-        "Symbol is required"
-      );
+      throw new Error("Symbol is required");
     }
 
     const params = {
-      symbol:
-        normalizedSymbol,
-
-      limit:
-        Math.min(
-          100,
-          Math.max(
-            1,
-            Number(limit) || 100
-          )
-        ),
+      symbol: normalizedSymbol,
+      limit: Math.min(
+        100,
+        Math.max(1, Number(limit) || 100)
+      ),
     };
 
-    if (
-      startTime !== null &&
-      startTime !== undefined
-    ) {
-      params.startTime =
-        Number(startTime);
+    if (startTime !== null && startTime !== undefined) {
+      params.startTime = Number(startTime);
     }
 
-    if (
-      endTime !== null &&
-      endTime !== undefined
-    ) {
-      params.endTime =
-        Number(endTime);
+    if (endTime !== null && endTime !== undefined) {
+      params.endTime = Number(endTime);
     }
 
     console.log(
@@ -708,16 +506,13 @@ class OrderService {
       `End=${params.endTime || "default"}`
     );
 
-    const result =
-      await this.client.get(
-        "/capi/v3/userTrades",
-        params
-      );
+    const result = await this.client.get(
+      "/capi/v3/userTrades",
+      params
+    );
 
     const trades =
-      Array.isArray(
-        result?.data
-      )
+      Array.isArray(result?.data)
         ? result.data
         : Array.isArray(result)
           ? result
@@ -734,41 +529,29 @@ class OrderService {
   // CLOSE POSITION
   // ==========================================================
 
-  async closeTestPosition(
-    symbol
-  ) {
+  async closeTestPosition(symbol) {
     const normalizedSymbol =
-      String(symbol || "")
-        .toUpperCase()
-        .trim();
+      String(symbol || "").toUpperCase().trim();
 
     console.log(
       `[TEST] Looking for ${normalizedSymbol} position...`
     );
 
-    const result =
-      await this.client.get(
-        "/capi/v3/account/position/allPosition"
-      );
+    const result = await this.client.get(
+      "/capi/v3/account/position/allPosition"
+    );
 
     const positions =
-      Array.isArray(
-        result?.data
-      )
+      Array.isArray(result?.data)
         ? result.data
         : [];
 
-    const position =
-      positions.find(
-        (item) =>
-          String(
-            item.symbol || ""
-          ).toUpperCase() ===
-            normalizedSymbol &&
-          Number(
-            item.size || 0
-          ) !== 0
-      );
+    const position = positions.find(
+      (item) =>
+        String(item.symbol || "").toUpperCase() ===
+          normalizedSymbol &&
+        Number(item.size || 0) !== 0
+    );
 
     if (!position) {
       throw new Error(
@@ -777,24 +560,15 @@ class OrderService {
     }
 
     const positionSide =
-      String(
-        position.side || ""
-      ).toUpperCase();
+      String(position.side || "").toUpperCase();
 
-    const quantity =
-      String(
-        Math.abs(
-          Number(
-            position.size
-          )
-        )
-      );
+    const quantity = String(
+      Math.abs(Number(position.size))
+    );
 
     if (
-      positionSide !==
-        "LONG" &&
-      positionSide !==
-        "SHORT"
+      positionSide !== "LONG" &&
+      positionSide !== "SHORT"
     ) {
       throw new Error(
         `Unknown position side: ${position.side}`
@@ -802,78 +576,43 @@ class OrderService {
     }
 
     const side =
-      positionSide ===
-      "LONG"
+      positionSide === "LONG"
         ? "SELL"
         : "BUY";
 
     const body = {
-      symbol:
-        normalizedSymbol,
-
+      symbol: normalizedSymbol,
       side,
-
       positionSide,
-
-      type:
-        "MARKET",
-
+      type: "MARKET",
       quantity,
-
-      reduceOnly:
-        true,
-
+      reduceOnly: true,
       newClientOrderId:
         `bot_close_${normalizedSymbol.toLowerCase()}_${Date.now()}`,
     };
 
-    console.log(
-      "[TEST] CLOSE ORDER BODY"
+    console.log("[TEST] CLOSE ORDER BODY");
+    console.log(JSON.stringify(body, null, 2));
+
+    const closeResult = await this.client.post(
+      "/capi/v3/order",
+      body
     );
 
-    console.log(
-      JSON.stringify(
-        body,
-        null,
-        2
-      )
-    );
-
-    const closeResult =
-      await this.client.post(
-        "/capi/v3/order",
-        body
-      );
-
-    console.log(
-      "[TEST] CLOSE ORDER RESPONSE"
-    );
-
-    console.log(
-      JSON.stringify(
-        closeResult,
-        null,
-        2
-      )
-    );
+    console.log("[TEST] CLOSE ORDER RESPONSE");
+    console.log(JSON.stringify(closeResult, null, 2));
 
     this.activeTpOrderIds.delete(
       `${normalizedSymbol}:LONG`
     );
-
     this.activeTpOrderIds.delete(
       `${normalizedSymbol}:SHORT`
     );
 
     return {
       ...closeResult,
-
-      symbol:
-        normalizedSymbol,
-
-      direction:
-        positionSide,
-
+      symbol: normalizedSymbol,
+      direction: positionSide,
       quantity,
     };
   }
@@ -882,51 +621,32 @@ class OrderService {
   // GET CURRENT ACTIVE CONDITIONAL ORDERS
   // ==========================================================
 
-  async getCurrentConditionalOrders(
-    symbol
-  ) {
+  async getCurrentConditionalOrders(symbol) {
     const normalizedSymbol =
-      String(symbol || "")
-        .toUpperCase()
-        .trim();
+      String(symbol || "").toUpperCase().trim();
 
     console.log(
       `[TEST] GET CURRENT CONDITIONAL ORDERS ${normalizedSymbol}`
     );
 
-    const result =
-      await this.client.get(
-        "/capi/v3/openAlgoOrders",
-        {
-          symbol:
-            normalizedSymbol,
-
-          page:
-            1,
-
-          limit:
-            100,
-        }
-      );
+    const result = await this.client.get(
+      "/capi/v3/openAlgoOrders",
+      {
+        symbol: normalizedSymbol,
+        page: 1,
+        limit: 100,
+      }
+    );
 
     const orders =
-      Array.isArray(
-        result?.data
-      )
+      Array.isArray(result?.data)
         ? result.data
         : [];
 
     console.log(
       `[TEST] CURRENT CONDITIONAL ORDERS FOUND=${orders.length}`
     );
-
-    console.log(
-      JSON.stringify(
-        orders,
-        null,
-        2
-      )
-    );
+    console.log(JSON.stringify(orders, null, 2));
 
     return orders;
   }
@@ -941,14 +661,10 @@ class OrderService {
     previousTpOrderId = null
   ) {
     const normalizedSymbol =
-      String(symbol || "")
-        .toUpperCase()
-        .trim();
+      String(symbol || "").toUpperCase().trim();
 
     const normalizedPositionSide =
-      String(positionSide || "")
-        .toUpperCase()
-        .trim();
+      String(positionSide || "").toUpperCase().trim();
 
     const orders =
       await this.getCurrentConditionalOrders(
@@ -956,40 +672,24 @@ class OrderService {
       );
 
     if (
-      previousTpOrderId !==
-        null &&
-      previousTpOrderId !==
-        undefined
+      previousTpOrderId !== null &&
+      previousTpOrderId !== undefined
     ) {
-      const trackedId =
-        String(
-          previousTpOrderId
-        );
+      const trackedId = String(previousTpOrderId);
 
-      const tracked =
-        orders.find(
-          (order) =>
-            String(
-              order.algoId || ""
-            ) ===
-              trackedId &&
-            String(
-              order.symbol || ""
-            ).toUpperCase() ===
-              normalizedSymbol &&
-            String(
-              order.positionSide || ""
-            ).toUpperCase() ===
-              normalizedPositionSide
-        );
+      const tracked = orders.find(
+        (order) =>
+          String(order.algoId || "") === trackedId &&
+          String(order.symbol || "").toUpperCase() ===
+            normalizedSymbol &&
+          String(order.positionSide || "").toUpperCase() ===
+            normalizedPositionSide
+      );
 
       if (tracked) {
         console.log(
-          `[TEST] TRACKED ACTIVE TP FOUND | algoId=${String(
-            tracked.algoId
-          )}`
+          `[TEST] TRACKED ACTIVE TP FOUND | algoId=${String(tracked.algoId)}`
         );
-
         return tracked;
       }
     }
@@ -1000,61 +700,44 @@ class OrderService {
       "UNTRIGGERED",
     ];
 
-    const tp =
-      orders.find(
-        (order) => {
-          const orderType =
-            String(
-              order.orderType ||
-                order.planType ||
-                ""
-            ).toUpperCase();
+    const tp = orders.find((order) => {
+      const orderType =
+        String(
+          order.orderType ||
+          order.planType ||
+          ""
+        ).toUpperCase();
 
-          const status =
-            String(
-              order.algoStatus ||
-                ""
-            ).toUpperCase();
+      const status =
+        String(order.algoStatus || "").toUpperCase();
 
-          const symbolMatch =
-            String(
-              order.symbol || ""
-            ).toUpperCase() ===
-              normalizedSymbol;
+      const symbolMatch =
+        String(order.symbol || "").toUpperCase() ===
+        normalizedSymbol;
 
-          const sideMatch =
-            String(
-              order.positionSide || ""
-            ).toUpperCase() ===
-              normalizedPositionSide;
+      const sideMatch =
+        String(order.positionSide || "").toUpperCase() ===
+        normalizedPositionSide;
 
-          const tpMatch =
-            orderType ===
-              "TAKE_PROFIT_MARKET" ||
-            orderType ===
-              "TAKE_PROFIT";
+      const tpMatch =
+        orderType === "TAKE_PROFIT_MARKET" ||
+        orderType === "TAKE_PROFIT";
 
-          const statusMatch =
-            activeStatuses.includes(
-              status
-            );
+      const statusMatch =
+        activeStatuses.includes(status);
 
-          return (
-            symbolMatch &&
-            sideMatch &&
-            tpMatch &&
-            statusMatch
-          );
-        }
+      return (
+        symbolMatch &&
+        sideMatch &&
+        tpMatch &&
+        statusMatch
       );
+    });
 
     if (tp) {
       console.log(
-        `[TEST] ACTIVE TP FOUND | algoId=${String(
-          tp.algoId
-        )} | trigger=${tp.triggerPrice}`
+        `[TEST] ACTIVE TP FOUND | algoId=${String(tp.algoId)} | trigger=${tp.triggerPrice}`
       );
-
       return tp;
     }
 
@@ -1069,73 +752,37 @@ class OrderService {
   // MODIFY TAKE PROFIT
   // ==========================================================
 
-  async modifyTakeProfit(
-    orderId,
-    takeProfit
-  ) {
-    if (
-      orderId ===
-        null ||
-      orderId ===
-        undefined
-    ) {
-      throw new Error(
-        "Cannot modify TP without orderId"
-      );
+  async modifyTakeProfit(orderId, takeProfit) {
+    if (orderId === null || orderId === undefined) {
+      throw new Error("Cannot modify TP without orderId");
     }
 
-    const safeOrderId =
-      String(orderId);
+    const safeOrderId = String(orderId);
 
     const body = {
-      orderId:
-        safeOrderId,
-
-      triggerPrice:
-        String(takeProfit),
-
-      executePrice:
-        "0",
-
-      triggerPriceType:
-        "MARK_PRICE",
+      orderId: safeOrderId,
+      triggerPrice: String(takeProfit),
+      executePrice: "0",
+      triggerPriceType: "MARK_PRICE",
     };
 
-    console.log(
-      "[TEST] MODIFY TAKE PROFIT REQUEST"
+    console.log("[TEST] MODIFY TAKE PROFIT REQUEST");
+    console.log(JSON.stringify(body, null, 2));
+
+    const result = await this.client.post(
+      "/capi/v3/modifyTpSlOrder",
+      body
     );
 
-    console.log(
-      JSON.stringify(
-        body,
-        null,
-        2
-      )
-    );
-
-    const result =
-      await this.client.post(
-        "/capi/v3/modifyTpSlOrder",
-        body
-      );
-
-    console.log(
-      "[TEST] MODIFY TAKE PROFIT RESPONSE"
-    );
-
-    console.log(
-      JSON.stringify(
-        result,
-        null,
-        2
-      )
-    );
+    console.log("[TEST] MODIFY TAKE PROFIT RESPONSE");
+    console.log(JSON.stringify(result, null, 2));
 
     return result;
   }
 
   // ==========================================================
   // CREATE / UPDATE TP + SL
+  // EXISTING LOGIC PRESERVED
   // ==========================================================
 
   async updateTestTpSl(
@@ -1145,71 +792,47 @@ class OrderService {
     options = {}
   ) {
     const normalizedSymbol =
-      String(symbol || "")
-        .toUpperCase()
-        .trim();
+      String(symbol || "").toUpperCase().trim();
 
-    const sl =
-      Number(slPercent);
+    const sl = Number(slPercent);
+    const tp = Number(tpPercent);
 
-    const tp =
-      Number(tpPercent);
-
-    if (
-      !Number.isFinite(sl) ||
-      sl <= 0
-    ) {
+    if (!Number.isFinite(sl) || sl <= 0) {
       throw new Error(
         "Stop Loss must be greater than 0"
       );
     }
 
-    if (
-      !Number.isFinite(tp) ||
-      tp <= 0
-    ) {
+    if (!Number.isFinite(tp) || tp <= 0) {
       throw new Error(
         "Take Profit must be greater than 0"
       );
     }
 
     const keepOriginalSl =
-      Boolean(
-        options.keepOriginalSl
-      );
+      Boolean(options.keepOriginalSl);
 
     const originalStopLoss =
-      Number(
-        options.originalStopLoss
-      );
+      Number(options.originalStopLoss);
 
     const previousTpOrderId =
-      options.previousTpOrderId ??
-      null;
+      options.previousTpOrderId ?? null;
 
-    const result =
-      await this.client.get(
-        "/capi/v3/account/position/allPosition"
-      );
+    const result = await this.client.get(
+      "/capi/v3/account/position/allPosition"
+    );
 
     const positions =
-      Array.isArray(
-        result?.data
-      )
+      Array.isArray(result?.data)
         ? result.data
         : [];
 
-    const position =
-      positions.find(
-        (item) =>
-          String(
-            item.symbol || ""
-          ).toUpperCase() ===
-            normalizedSymbol &&
-          Number(
-            item.size || 0
-          ) !== 0
-      );
+    const position = positions.find(
+      (item) =>
+        String(item.symbol || "").toUpperCase() ===
+          normalizedSymbol &&
+        Number(item.size || 0) !== 0
+    );
 
     if (!position) {
       throw new Error(
@@ -1218,25 +841,14 @@ class OrderService {
     }
 
     const positionSide =
-      String(
-        position.side || ""
-      ).toUpperCase();
+      String(position.side || "").toUpperCase();
 
-    // ========================================================
     // GET WEEX PRICE PRECISION
-    // ========================================================
-
     const pricePrecision =
-      await this.getPricePrecision(
-        normalizedSymbol
-      );
+      await this.getPricePrecision(normalizedSymbol);
 
     const size =
-      Math.abs(
-        Number(
-          position.size
-        )
-      );
+      Math.abs(Number(position.size));
 
     const openValue =
       Number(
@@ -1254,25 +866,16 @@ class OrderService {
       );
 
     if (
-      !Number.isFinite(
-        averageEntry
-      ) ||
+      !Number.isFinite(averageEntry) ||
       averageEntry <= 0
     ) {
-      if (
-        openValue > 0 &&
-        size > 0
-      ) {
-        averageEntry =
-          openValue /
-          size;
+      if (openValue > 0 && size > 0) {
+        averageEntry = openValue / size;
       }
     }
 
     if (
-      !Number.isFinite(
-        averageEntry
-      ) ||
+      !Number.isFinite(averageEntry) ||
       averageEntry <= 0
     ) {
       throw new Error(
@@ -1282,238 +885,117 @@ class OrderService {
 
     let takeProfit;
 
-    if (
-      positionSide ===
-      "LONG"
-    ) {
+    if (positionSide === "LONG") {
       takeProfit =
-        averageEntry *
-        (1 + tp / 100);
-
-    } else if (
-      positionSide ===
-      "SHORT"
-    ) {
+        averageEntry * (1 + tp / 100);
+    } else if (positionSide === "SHORT") {
       takeProfit =
-        averageEntry *
-        (1 - tp / 100);
-
+        averageEntry * (1 - tp / 100);
     } else {
       throw new Error(
         `Unknown position side: ${position.side}`
       );
     }
 
-    // ========================================================
-    // DYNAMIC WEEX PRICE PRECISION
-    // ========================================================
-
     takeProfit =
-      this.roundPrice(
-        takeProfit,
-        pricePrecision
-      );
+      this.roundPrice(takeProfit, pricePrecision);
 
     let stopLoss;
 
-    if (
-      keepOriginalSl
-    ) {
+    if (keepOriginalSl) {
       if (
-        !Number.isFinite(
-          originalStopLoss
-        ) ||
+        !Number.isFinite(originalStopLoss) ||
         originalStopLoss <= 0
       ) {
         throw new Error(
-          `Original Stop Loss is required when keepOriginalSl=true`
+          "Original Stop Loss is required when keepOriginalSl=true"
         );
       }
 
       stopLoss =
-        this.roundPrice(
-          originalStopLoss,
-          pricePrecision
-        );
-
-    } else if (
-      positionSide ===
-      "LONG"
-    ) {
+        this.roundPrice(originalStopLoss, pricePrecision);
+    } else if (positionSide === "LONG") {
       stopLoss =
-        averageEntry *
-        (1 - sl / 100);
+        averageEntry * (1 - sl / 100);
 
       stopLoss =
-        this.roundPrice(
-          stopLoss,
-          pricePrecision
-        );
-
+        this.roundPrice(stopLoss, pricePrecision);
     } else {
       stopLoss =
-        averageEntry *
-        (1 + sl / 100);
+        averageEntry * (1 + sl / 100);
 
       stopLoss =
-        this.roundPrice(
-          stopLoss,
-          pricePrecision
-        );
+        this.roundPrice(stopLoss, pricePrecision);
     }
 
     console.log(
       `[TEST] ${normalizedSymbol} ${positionSide}`
     );
-
-    console.log(
-      `[TEST] Entry=${averageEntry}`
-    );
-
-    console.log(
-      `[TEST] SL=${stopLoss}`
-    );
-
-    console.log(
-      `[TEST] TP=${takeProfit}`
-    );
-
+    console.log(`[TEST] Entry=${averageEntry}`);
+    console.log(`[TEST] SL=${stopLoss}`);
+    console.log(`[TEST] TP=${takeProfit}`);
     console.log(
       `[TEST] Price Precision=${pricePrecision}`
     );
-
     console.log(
       `[TEST] Keep Original SL=${keepOriginalSl}`
     );
 
-    // ==========================================================
     // FIRST ENTRY
-    // ==========================================================
-
-    if (
-      !keepOriginalSl
-    ) {
+    if (!keepOriginalSl) {
       const slBody = {
-        symbol:
-          normalizedSymbol,
-
+        symbol: normalizedSymbol,
         clientAlgoId:
           `bot_sl_${normalizedSymbol.toLowerCase()}_${Date.now()}`,
+        planType: "STOP_LOSS",
+        triggerPrice: String(stopLoss),
+        executePrice: "0",
 
-        planType:
-          "STOP_LOSS",
-
-        triggerPrice:
-          String(stopLoss),
-
-        executePrice:
-          "0",
-
-        // IMPORTANT:
-        // Keep quantity=0.
-        // Previous tests showed that changing this
-        // can cause incorrect partial-close behavior.
-        quantity:
-          "0",
+        // IMPORTANT: keep quantity=0.
+        quantity: "0",
 
         positionSide,
-
-        triggerPriceType:
-          "MARK_PRICE",
-
-        reduceOnly:
-          true,
+        triggerPriceType: "MARK_PRICE",
+        reduceOnly: true,
       };
 
-      console.log(
-        "[TEST] STOP LOSS REQUEST"
+      console.log("[TEST] STOP LOSS REQUEST");
+      console.log(JSON.stringify(slBody, null, 2));
+
+      const slResult = await this.client.post(
+        "/capi/v3/placeTpSlOrder",
+        slBody
       );
 
-      console.log(
-        JSON.stringify(
-          slBody,
-          null,
-          2
-        )
-      );
-
-      const slResult =
-        await this.client.post(
-          "/capi/v3/placeTpSlOrder",
-          slBody
-        );
-
-      console.log(
-        "[TEST] STOP LOSS RESPONSE"
-      );
-
-      console.log(
-        JSON.stringify(
-          slResult,
-          null,
-          2
-        )
-      );
+      console.log("[TEST] STOP LOSS RESPONSE");
+      console.log(JSON.stringify(slResult, null, 2));
 
       const tpBody = {
-        symbol:
-          normalizedSymbol,
-
+        symbol: normalizedSymbol,
         clientAlgoId:
           `bot_tp_${normalizedSymbol.toLowerCase()}_${Date.now()}`,
+        planType: "TAKE_PROFIT",
+        triggerPrice: String(takeProfit),
+        executePrice: "0",
 
-        planType:
-          "TAKE_PROFIT",
-
-        triggerPrice:
-          String(takeProfit),
-
-        executePrice:
-          "0",
-
-        // IMPORTANT:
-        // Keep quantity=0.
-        quantity:
-          "0",
+        // IMPORTANT: keep quantity=0.
+        quantity: "0",
 
         positionSide,
-
-        triggerPriceType:
-          "MARK_PRICE",
-
-        reduceOnly:
-          true,
+        triggerPriceType: "MARK_PRICE",
+        reduceOnly: true,
       };
 
-      console.log(
-        "[TEST] TAKE PROFIT REQUEST"
+      console.log("[TEST] TAKE PROFIT REQUEST");
+      console.log(JSON.stringify(tpBody, null, 2));
+
+      const tpResult = await this.client.post(
+        "/capi/v3/placeTpSlOrder",
+        tpBody
       );
 
-      console.log(
-        JSON.stringify(
-          tpBody,
-          null,
-          2
-        )
-      );
-
-      const tpResult =
-        await this.client.post(
-          "/capi/v3/placeTpSlOrder",
-          tpBody
-        );
-
-      console.log(
-        "[TEST] TAKE PROFIT RESPONSE"
-      );
-
-      console.log(
-        JSON.stringify(
-          tpResult,
-          null,
-          2
-        )
-      );
+      console.log("[TEST] TAKE PROFIT RESPONSE");
+      console.log(JSON.stringify(tpResult, null, 2));
 
       const rawTpOrderId =
         tpResult?.data?.orderId ||
@@ -1523,17 +1005,12 @@ class OrderService {
         null;
 
       const tpOrderId =
-        rawTpOrderId !==
-          null &&
-        rawTpOrderId !==
-          undefined
+        rawTpOrderId !== null &&
+        rawTpOrderId !== undefined
           ? String(rawTpOrderId)
           : null;
 
-      if (
-        tpOrderId !==
-        null
-      ) {
+      if (tpOrderId !== null) {
         this.activeTpOrderIds.set(
           `${normalizedSymbol}:${positionSide}`,
           tpOrderId
@@ -1545,65 +1022,38 @@ class OrderService {
       }
 
       return {
-        symbol:
-          normalizedSymbol,
-
-        direction:
-          positionSide,
-
-        entryPrice:
-          averageEntry,
-
+        symbol: normalizedSymbol,
+        direction: positionSide,
+        entryPrice: averageEntry,
         stopLoss,
-
         takeProfit,
-
         slResult,
-
         tpResult,
-
         tpOrderId,
       };
     }
 
-    // ==========================================================
     // ADDITIONAL ENTRY
-    // ==========================================================
+    console.log("[TEST] ADDITIONAL ENTRY");
+    console.log("[TEST] Original SL remains unchanged.");
 
-    console.log(
-      "[TEST] ADDITIONAL ENTRY"
-    );
-
-    console.log(
-      "[TEST] Original SL remains unchanged."
-    );
-
-    let trackedTpId =
-      previousTpOrderId;
+    let trackedTpId = previousTpOrderId;
 
     if (
-      trackedTpId ===
-        null ||
-      trackedTpId ===
-        undefined
+      trackedTpId === null ||
+      trackedTpId === undefined
     ) {
       trackedTpId =
         this.activeTpOrderIds.get(
           `${normalizedSymbol}:${positionSide}`
-        ) ||
-        null;
+        ) || null;
     }
 
     if (
-      trackedTpId !==
-        null &&
-      trackedTpId !==
-        undefined
+      trackedTpId !== null &&
+      trackedTpId !== undefined
     ) {
-      trackedTpId =
-        String(
-          trackedTpId
-        );
+      trackedTpId = String(trackedTpId);
     }
 
     const activeTp =
@@ -1619,22 +1069,15 @@ class OrderService {
       );
     }
 
-    const activeTpId =
-      String(
-        activeTp.algoId
-      );
+    const activeTpId = String(activeTp.algoId);
 
     console.log(
       `[TEST] MODIFYING EXISTING TP | algoId=${activeTpId}`
     );
-
     console.log(
       `[TEST] OLD TP=${activeTp.triggerPrice}`
     );
-
-    console.log(
-      `[TEST] NEW TP=${takeProfit}`
-    );
+    console.log(`[TEST] NEW TP=${takeProfit}`);
 
     const tpResult =
       await this.modifyTakeProfit(
@@ -1652,32 +1095,17 @@ class OrderService {
     );
 
     return {
-      symbol:
-        normalizedSymbol,
-
-      direction:
-        positionSide,
-
-      entryPrice:
-        averageEntry,
-
+      symbol: normalizedSymbol,
+      direction: positionSide,
+      entryPrice: averageEntry,
       stopLoss,
-
       takeProfit,
-
-      slResult:
-        null,
-
+      slResult: null,
       tpResult,
-
-      tpOrderId:
-        activeTpId,
-
-      modifiedExistingTp:
-        true,
+      tpOrderId: activeTpId,
+      modifiedExistingTp: true,
     };
   }
 }
 
-module.exports =
-  OrderService;
+module.exports = OrderService;
