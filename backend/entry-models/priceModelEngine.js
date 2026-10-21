@@ -33,9 +33,9 @@ const MarketData = require("../../market/marketData");
 const TREND_CANDLES = 200;
 
 const ENTRY_WINDOWS = [
+  10,
   20,
-  30,
-  35,
+  25,
   60,
   120,
 ];

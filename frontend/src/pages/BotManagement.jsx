@@ -1,3 +1,4 @@
+
 import {
   useEffect,
   useState,
@@ -31,6 +32,27 @@ function BotManagement() {
   const [direction, setDirection] = useState("LONG");
   const [stopLoss, setStopLoss] = useState("3");
   const [takeProfit, setTakeProfit] = useState("5");
+
+  // RISK SETTINGS
+  const [riskLevel, setRiskLevel] = useState("BASE");
+
+  const riskOptions = {
+    BASE: {
+      label: "Base Risk",
+      multiplier: 1,
+      icon: "🛡️",
+    },
+    GOOD: {
+      label: "Good Risk",
+      multiplier: 2,
+      icon: "📈",
+    },
+    EXTREME: {
+      label: "Extreme Risk",
+      multiplier: 3,
+      icon: "⚡",
+    },
+  };
 
   // PYRAMID SETTINGS
   const [pyramidPositions, setPyramidPositions] = useState("1");
@@ -129,6 +151,14 @@ function BotManagement() {
     const cleanPyramidDistance = Number(pyramidDistance);
     const cleanMultiplier = Number(pyramidPositionMultiplier);
 
+    // RISK VALIDATION
+    if (!Object.prototype.hasOwnProperty.call(riskOptions, riskLevel)) {
+      setError("Please select a valid risk level.");
+      return;
+    }
+
+    const selectedRisk = riskOptions[riskLevel];
+
     // TRIGGER LINE VALIDATION
     let cleanTriggerLinePrice = null;
 
@@ -174,7 +204,7 @@ function BotManagement() {
       return;
     }
 
-    // MULTIPLIER VALIDATION
+    // PYRAMID MULTIPLIER VALIDATION
     const allowedMultipliers = [1, 1.5, 2, 2.5, 3];
 
     if (!allowedMultipliers.includes(cleanMultiplier)) {
@@ -194,9 +224,17 @@ function BotManagement() {
         entryModel: "BUTTON_PRESS",
         stopLoss: sl,
         takeProfit: tp,
+
+        // RISK SETTINGS
+        riskLevel: riskLevel,
+        riskMultiplier: selectedRisk.multiplier,
+
+        // EXISTING PYRAMID SETTINGS
         pyramidPositions: pyramid,
         pyramidDistance: cleanPyramidDistance,
         pyramidPositionMultiplier: cleanMultiplier,
+
+        // EXISTING TRIGGER LINE SETTINGS
         triggerLineEnabled,
         triggerLinePrice: cleanTriggerLinePrice,
       });
@@ -220,13 +258,16 @@ function BotManagement() {
       setDirection("LONG");
       setStopLoss("3");
       setTakeProfit("5");
+      setRiskLevel("BASE");
       setPyramidPositions("1");
       setPyramidDistance("1.00");
       setPyramidPositionMultiplier("1");
       setTriggerLineEnabled(false);
       setTriggerLinePrice("");
 
-      setMessage("Bot created successfully.");
+      setMessage(
+        `Bot created. Selected risk: ${selectedRisk.label} (${selectedRisk.multiplier}×).`
+      );
     } catch (err) {
       console.error("[Bot Management] Create error:", err);
       setError(err.message || "Failed to create bot.");
@@ -378,7 +419,7 @@ function BotManagement() {
                 type="text"
                 value={botName}
                 onChange={(event) => setBotName(event.target.value)}
-                placeholder="My BTC Bot"
+                placeholder="My Trading Bot"
               />
             </div>
 
@@ -425,6 +466,32 @@ function BotManagement() {
             <div className="bot-form-group">
               <label>ENTRY MODEL</label>
               <div className="bot-static-field">Button Press</div>
+            </div>
+
+            {/* RISK LEVEL */}
+
+            <div className="bot-form-group">
+              <label>⚖️ RISK LEVEL</label>
+
+              <select
+                value={riskLevel}
+                onChange={(event) => setRiskLevel(event.target.value)}
+              >
+                <option value="BASE">🛡️ Base Risk — 1×</option>
+                <option value="GOOD">📈 Good Risk — 2×</option>
+                <option value="EXTREME">⚡ Extreme Risk — 3×</option>
+              </select>
+
+              <small>
+                {riskLevel === "BASE" &&
+                  "Normal order size. Risk multiplier: 1×."}
+
+                {riskLevel === "GOOD" &&
+                  "Double the normal order size. Risk multiplier: 2×."}
+
+                {riskLevel === "EXTREME" &&
+                  "Triple the normal order size. Risk multiplier: 3×."}
+              </small>
             </div>
 
             {/* STOP LOSS */}
@@ -513,15 +580,15 @@ function BotManagement() {
               </datalist>
 
               <small>
-                Entry #1 uses 10 USDT. Later entries use the selected
-                multiplier. Maximum 3×.
+                Existing pyramid multiplier. Entry #1 uses its normal
+                sizing; later entries use this multiplier.
               </small>
             </div>
 
             {/* TRIGGER LINE */}
 
             <div className="bot-form-group bot-trigger-group">
-              <label>TRIGGER LINE</label>
+              <label>🎯 TRIGGER LINE</label>
 
               <label className="bot-checkbox-row">
                 <input
@@ -612,6 +679,14 @@ function BotManagement() {
               bot.entryModelStatus === "RUNNING" ||
               bot.entryModelState === "RUNNING";
 
+            // Older bots default to BASE until backend support
+            // persists their selected risk settings.
+            const botRiskLevel = riskOptions[bot.riskLevel]
+              ? bot.riskLevel
+              : "BASE";
+
+            const botRisk = riskOptions[botRiskLevel];
+
             return (
               <div className="bot-card" key={bot.id}>
                 <div className="bot-card-header">
@@ -640,6 +715,13 @@ function BotManagement() {
                   <div>
                     <span>ENTRY</span>
                     <strong>Button Press</strong>
+                  </div>
+
+                  <div>
+                    <span>⚖️ RISK LEVEL</span>
+                    <strong>
+                      {botRisk.icon} {botRisk.label} ({botRisk.multiplier}×)
+                    </strong>
                   </div>
 
                   <div>
