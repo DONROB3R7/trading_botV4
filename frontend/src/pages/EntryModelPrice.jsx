@@ -23,9 +23,9 @@ import {
 import "./EntryModelPrice.css";
 
 const WINDOWS = [
+  10,
   20,
-  30,
-  35,
+  25,
   60,
   120,
 ];
