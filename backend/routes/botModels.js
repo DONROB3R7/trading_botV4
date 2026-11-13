@@ -442,6 +442,9 @@ class BotModels {
     // RISK LEVEL
     riskLevel = "BASE",
 
+    // MAX CONSECUTIVE LOSSES
+    consecutiveLossLimit = 1,
+
     triggerLineEnabled,
     triggerLinePrice,
     triggerState,
@@ -502,6 +505,20 @@ class BotModels {
       allowedRiskLevels[cleanRiskLevel];
 
     // ========================================================
+    // VALIDATE CONSECUTIVE LOSS LIMIT
+    // DEFAULT = 1 LOSS
+    // ========================================================
+
+    const requestedLossLimit =
+      Number(consecutiveLossLimit);
+
+    const cleanLossLimit =
+      Number.isFinite(requestedLossLimit) &&
+      requestedLossLimit >= 1
+        ? Math.floor(requestedLossLimit)
+        : 1;
+
+    // ========================================================
     // CREATE BOT
     // ========================================================
 
@@ -523,6 +540,11 @@ class BotModels {
 
       riskLevel: cleanRiskLevel,
       riskMultiplier: cleanRiskMultiplier,
+
+      // CONSECUTIVE LOSS PROTECTION
+
+      consecutiveLossLimit: cleanLossLimit,
+      consecutiveLosses: 0,
 
       // PYRAMID DISTANCE
 
@@ -552,6 +574,9 @@ class BotModels {
     // ========================================================
 
     bot.onTradeProfit = async (finalPnl) => {
+      // A WIN RESETS THE CONSECUTIVE LOSS COUNTER
+      bot.consecutiveLosses = 0;
+
       console.log(
         `[Bot:${bot.symbol}] TRADE CYCLE PROFIT | ` +
           `P/L=${finalPnl} | RESET NEW LIFE`
@@ -614,9 +639,12 @@ class BotModels {
     // ========================================================
 
     bot.onTradeLoss = async (finalPnl) => {
+      bot.consecutiveLosses += 1;
+
       console.log(
         `[Bot:${bot.symbol}] TRADE CYCLE LOSS | ` +
-          `P/L=${finalPnl} | KILL`
+          `P/L=${finalPnl} | ` +
+          `Consecutive=${bot.consecutiveLosses}/${bot.consecutiveLossLimit}`
       );
 
       lifecycle.stop(bot.id);
@@ -632,13 +660,63 @@ class BotModels {
       const combined =
         this.combinedEntryModelManager.get(bot.id);
 
-      if (combined) {
-        combined.stop();
+      // ======================================================
+      // LOSS LIMIT REACHED → KILL BOT
+      // ======================================================
+
+      if (
+        bot.consecutiveLosses >=
+        bot.consecutiveLossLimit
+      ) {
+        if (combined) {
+          combined.stop();
+        }
+
+        bot.status = "KILLED";
+
+        console.log(
+          `[Bot:${bot.symbol}] BOT KILLED | ` +
+            `Loss limit reached: ` +
+            `${bot.consecutiveLosses}/${bot.consecutiveLossLimit}`
+        );
+
+        return;
       }
 
-      bot.status = "KILLED";
+      // ======================================================
+      // LOSS LIMIT NOT REACHED → RESET AND CONTINUE
+      // ======================================================
 
-      console.log(`[Bot:${bot.symbol}] BOT KILLED`);
+      console.log(
+        `[Bot:${bot.symbol}] LOSS LIMIT NOT REACHED | ` +
+          `Restarting trade cycle`
+      );
+
+      if (
+        combined &&
+        typeof combined.resetCampaign === "function"
+      ) {
+        combined.resetCampaign();
+      }
+
+      this.resetTradeState(bot);
+      bot.status = "ACTIVE";
+
+      if (!priceModel) {
+        console.error(
+          `[Bot:${bot.symbol}] LOSS RESET FAILED | ` +
+            `Price Model not found`
+        );
+
+        return;
+      }
+
+      await priceModel.start();
+
+      console.log(
+        `[Bot:${bot.symbol}] NEW PRICE MODEL CYCLE STARTED | ` +
+          `Losses=${bot.consecutiveLosses}/${bot.consecutiveLossLimit}`
+      );
     };
 
     // ========================================================

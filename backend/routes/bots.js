@@ -274,6 +274,24 @@ module.exports = function createBotsRouter({
         );
 
       // ======================================================
+      // CONSECUTIVE LOSS LIMIT
+      // ======================================================
+
+      const cleanConsecutiveLossLimit =
+        Math.max(
+          1,
+          Math.min(
+            10,
+            Math.floor(
+              advanced.cleanNumber(
+                body.consecutiveLossLimit,
+                1
+              )
+            )
+          )
+        );
+
+      // ======================================================
       // PYRAMID POSITION MULTIPLIER
       // ======================================================
 
@@ -410,6 +428,8 @@ module.exports = function createBotsRouter({
         stopLoss: cleanStopLoss,
         takeProfit: cleanTakeProfit,
         pyramidPositions: cleanPyramidPositions,
+        consecutiveLossLimit:
+                    cleanConsecutiveLossLimit,
 
         pyramidPositionMultiplier:
           cleanPyramidPositionMultiplier,

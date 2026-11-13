@@ -54,6 +54,10 @@ function BotManagement() {
     },
   };
 
+  // CONSECUTIVE LOSS SETTINGS
+  const [consecutiveLossLimit, setConsecutiveLossLimit] =
+    useState("1");
+
   // PYRAMID SETTINGS
   const [pyramidPositions, setPyramidPositions] = useState("1");
   const [pyramidDistance, setPyramidDistance] = useState("1.00");
@@ -150,6 +154,7 @@ function BotManagement() {
     const pyramid = Number(pyramidPositions);
     const cleanPyramidDistance = Number(pyramidDistance);
     const cleanMultiplier = Number(pyramidPositionMultiplier);
+    const cleanLossLimit = Number(consecutiveLossLimit);
 
     // RISK VALIDATION
     if (!Object.prototype.hasOwnProperty.call(riskOptions, riskLevel)) {
@@ -158,6 +163,18 @@ function BotManagement() {
     }
 
     const selectedRisk = riskOptions[riskLevel];
+
+    // CONSECUTIVE LOSS VALIDATION
+    if (
+      !Number.isInteger(cleanLossLimit) ||
+      cleanLossLimit < 1 ||
+      cleanLossLimit > 10
+    ) {
+      setError(
+        "Max Consecutive Losses must be a whole number between 1 and 10."
+      );
+      return;
+    }
 
     // TRIGGER LINE VALIDATION
     let cleanTriggerLinePrice = null;
@@ -229,6 +246,9 @@ function BotManagement() {
         riskLevel: riskLevel,
         riskMultiplier: selectedRisk.multiplier,
 
+        // CONSECUTIVE LOSS SETTINGS
+        consecutiveLossLimit: cleanLossLimit,
+
         // EXISTING PYRAMID SETTINGS
         pyramidPositions: pyramid,
         pyramidDistance: cleanPyramidDistance,
@@ -259,6 +279,7 @@ function BotManagement() {
       setStopLoss("3");
       setTakeProfit("5");
       setRiskLevel("BASE");
+      setConsecutiveLossLimit("1");
       setPyramidPositions("1");
       setPyramidDistance("1.00");
       setPyramidPositionMultiplier("1");
@@ -266,7 +287,7 @@ function BotManagement() {
       setTriggerLinePrice("");
 
       setMessage(
-        `Bot created. Selected risk: ${selectedRisk.label} (${selectedRisk.multiplier}×).`
+        `Bot created. Risk: ${selectedRisk.label} (${selectedRisk.multiplier}×). Loss limit: ${cleanLossLimit}.`
       );
     } catch (err) {
       console.error("[Bot Management] Create error:", err);
@@ -494,6 +515,30 @@ function BotManagement() {
               </small>
             </div>
 
+            {/* MAX CONSECUTIVE LOSSES */}
+
+            <div className="bot-form-group">
+              <label>🛑 MAX CONSECUTIVE LOSSES</label>
+
+              <select
+                value={consecutiveLossLimit}
+                onChange={(event) =>
+                  setConsecutiveLossLimit(event.target.value)
+                }
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+                  <option key={value} value={value}>
+                    {value} {value === 1 ? "Loss" : "Losses"}
+                  </option>
+                ))}
+              </select>
+
+              <small>
+                Bot stops after this many consecutive losing trade cycles.
+                A winning trade resets the counter.
+              </small>
+            </div>
+
             {/* STOP LOSS */}
 
             <div className="bot-form-group">
@@ -687,6 +732,14 @@ function BotManagement() {
 
             const botRisk = riskOptions[botRiskLevel];
 
+            const botLossLimit = Number(
+              bot.consecutiveLossLimit ?? 1
+            );
+
+            const botConsecutiveLosses = Number(
+              bot.consecutiveLosses ?? 0
+            );
+
             return (
               <div className="bot-card" key={bot.id}>
                 <div className="bot-card-header">
@@ -749,6 +802,13 @@ function BotManagement() {
                   <div>
                     <span>POSITION MULTIPLIER</span>
                     <strong>{botPyramidPositionMultiplier}×</strong>
+                  </div>
+
+                  <div>
+                    <span>🛑 LOSS LIMIT</span>
+                    <strong>
+                      {botConsecutiveLosses}/{botLossLimit}
+                    </strong>
                   </div>
 
                   <div>

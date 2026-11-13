@@ -7,12 +7,12 @@ class OrderService {
 
     const riskMode = "BASE"; // BASE, GOOD, EXTREME
 
-    this.defaultMargin =
-      riskMode === "GOOD"
-        ? 2
-        : riskMode === "EXTREME"
-          ? 3
-          : 1;
+  this.defaultMargin =
+    riskMode === "GOOD"
+      ? 6
+      : riskMode === "EXTREME"
+        ? 9
+        : 3;
 
     this.defaultLeverage = "10";
     this.defaultMarginType = "ISOLATED";
@@ -202,9 +202,9 @@ class OrderService {
 
     // Risk mode supplied by Manage Bot.
     const riskMargins = {
-      BASE: 1,
-      GOOD: 2,
-      EXTREME: 3,
+      BASE: 3,
+      GOOD: 6,
+      EXTREME: 9,
     };
 
     const riskLevel =
